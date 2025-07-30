@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Backup Console</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+    <div class="console-box" id="adminBackup">
+      <h1>:: ADMIN BACKUP CONSOLE ::</h1>
+      <p>Backup tools and database export will appear below.</p>
+      <div class="placeholder">
+        [ Backup options coming soon... ]
+      </div>
+      <p style="text-align:center;">
+        <a href="./console.html">Return to Console</a> | 
+        <a href="./logout.html">Logout</a>
+      </p>
+    </div>
+    <script>
+      if (sessionStorage.getItem('adminAccess') !== 'true') {
+        document.body.innerHTML = `
+          <div class="console-box">
+            <p class="warning">ACCESS DENIED</p>
+            <p>You are not authorized to view this page.</p>
+            <p><a href='./home.html'>Return to Login</a></p>
+          </div>`;
+      }
+    </script>
+        
+</body>
+</html>

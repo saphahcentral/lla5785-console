@@ -1,0 +1,54 @@
+/* === RETRO CONSOLE LOOK === */
+body {
+  background-color: #000 !important;
+  color: #00FF00 !important;
+  font-family: 'Roboto', monospace !important;
+}
+
+/* LINKS */
+a, a:visited {
+  color: #00FF00 !important;
+  text-decoration: underline;
+}
+a:hover {
+  color: #33FF33 !important;
+}
+
+/* HEADER BAR - THIN AND SMALL */
+.Header, .header-outer, .Header h1, .Header .title, .blog-title, .BlogTitle {
+  background-color: #000 !important;
+  color: #00FF00 !important;
+  font-size: 20px !important;
+  font-weight: bold !important;
+  text-align: center !important;
+  border-bottom: 1px solid #00FF00 !important;
+  padding: 2px !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
+
+/* POSTS */
+.post, .post-body, .post-title, .post h1, .post h2, .post h3, .post p {
+  color: #00FF00 !important;
+  background-color: transparent !important;
+  font-family: 'Roboto', monospace !important;
+}
+
+/* WIDGETS / SIDEBAR */
+.widget, .widget-content, .sidebar, .sidebar-container {
+  background-color: #000 !important;
+  color: #00FF00 !important;
+  border: 1px solid #00FF00 !important;
+}
+
+/* FOOTER */
+.footer, .footer-outer, .footer-inner {
+  background-color: #000 !important;
+  color: #00FF00 !important;
+  border-top: 1px solid #00FF00 !important;
+}
+
+/* REMOVE BACKGROUND IMAGES */
+body::before, body::after {
+  display: none !important;
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintain Ad List</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<div class="console-box">
+  <h1>:: AD LIST MANAGEMENT ::</h1>
+  <p>[ Ad management tools will appear here... ]</p>
+  <p style="text-align:center;">
+    <a href="./console.html">Return to Console</a>
+  </p>
+</div>
+<script>
+  if (sessionStorage.getItem('adminAccess') !== 'true') {
+    document.body.innerHTML = `
+      <div class="console-box">
+        <p class="warning">ACCESS DENIED</p>
+        <p>You are not authorized to view this page.</p>
+        <p><a href='./home.html'>Return to Login</a></p>
+      </div>`;
+  }
+</script>
+        
+</body>
+</html>
