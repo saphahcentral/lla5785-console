@@ -2,54 +2,106 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Login</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LLA5785 Console Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef6ff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #google-signin-btn {
+      background-color: #4285F4;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      font-size: 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: background-color 0.3s ease;
+    }
+    #google-signin-btn:hover {
+      background-color: #357ae8;
+    }
+    #error-message {
+      margin-top: 20px;
+      color: red;
+      font-weight: bold;
+      min-height: 1.2em;
+      text-align: center;
+      max-width: 320px;
+    }
+    h1 {
+      margin-bottom: 40px;
+      color: #003366;
+    }
+  </style>
 </head>
 <body>
 
-<div class="console-box" id="adminLogin">
-  <h1>:: ADMIN LOGIN ::</h1>
-  <p>Please enter your credentials to access the Lighthouse Console.</p>
-  <input type="email" id="email" placeholder="Email" style="width:100%;padding:0.5em;margin-top:1em;" />
-  <input type="password" id="password" placeholder="Password" style="width:100%;padding:0.5em;margin-top:1em;" />
-  <button onclick="login()" style="margin-top:1em;padding:0.5em 1em;">Login</button>
-  <p id="loginStatus" style="margin-top:1em;color:red;"></p>
-</div>
+  <h1>Admin Console Login</h1>
 
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyA6u9eYk8_WpU1Kwtx1dRka38EvX7A6vLo",
-    authDomain: "lla5785.firebaseapp.com",
-    projectId: "lla5785"
-  };
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
+  <button id="google-signin-btn">Sign in with Google</button>
 
-  function login() {
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const allowed = ["bessingerbackup2024@gmail.com", "duckbusiness2024a@gmail.com"];
+  <div id="error-message"></div>
 
-    firebase.auth().signInWithEmailAndPassword(email, password)
-      .then((userCredential) => {
-        const userEmail = userCredential.user.email;
-        if (allowed.includes(userEmail)) {
-          sessionStorage.setItem("adminAccess", "true");
-          window.location.href = "./console.html";
-        } else {
-          firebase.auth().signOut();
-          document.getElementById("loginStatus").innerText = "Access denied.";
-        }
-      })
-      .catch((error) => {
-        document.getElementById("loginStatus").innerText = "Login failed: " + error.message;
-      });
-  }
-</script>
-        
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getAuth,
+      signInWithPopup,
+      GoogleAuthProvider,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+      authDomain: "lla5785v3-0.firebaseapp.com",
+      projectId: "lla5785v3-0",
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
+    const signInBtn = document.getElementById("google-signin-btn");
+    const errorBox = document.getElementById("error-message");
+
+    signInBtn.addEventListener("click", () => {
+      signInWithPopup(auth, provider)
+        .then((result) => {
+          const user = result.user;
+          if (user.email === ADMIN_EMAIL) {
+            // Redirect to console.html on successful admin login
+            window.location.href = "console.html";
+          } else {
+            errorBox.textContent = "Access denied: Unauthorized user.";
+            signOut(auth);
+          }
+        })
+        .catch((error) => {
+          errorBox.textContent = "Login failed: " + error.message;
+        });
+    });
+
+    // Auto redirect if already signed in as admin
+    onAuthStateChanged(auth, (user) => {
+      if (user && user.email === ADMIN_EMAIL) {
+        window.location.href = "console.html";
+      }
+    });
+  </script>
+
 </body>
 </html>
