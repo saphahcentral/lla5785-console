@@ -2,29 +2,141 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Maintain Member Database</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LLA5785 Console: Members Database</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f9fb;
+      color: #333;
+      display: flex;
+      height: 100vh;
+    }
+    .left {
+      flex: 2;
+      padding: 20px;
+      overflow: auto;
+    }
+    .right {
+      flex: 1;
+      background: #eee;
+      padding: 20px;
+      border-left: 2px solid #ccc;
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #bbb;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #ddd;
+    }
+    td[contenteditable] {
+      background-color: #fff;
+      cursor: text;
+    }
+    button {
+      padding: 6px 12px;
+      margin-top: 10px;
+      background-color: #0066cc;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:hover {
+      background-color: #004d99;
+    }
+    .delete-btn {
+      background-color: #c0392b;
+      margin: 0;
+    }
+    .delete-btn:hover {
+      background-color: #922b21;
+    }
+  </style>
 </head>
 <body>
+  <div class="left">
+    <h2>Members Database Editor</h2>
+    <button onclick="addRow()">Add Member</button>
+    <table id="membersTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Member rows will go here -->
+      </tbody>
+    </table>
+  </div>
 
-<div class="console-box">
-  <h1>:: MEMBER DATABASE ::</h1>
-  <p>[ Member database viewer or form will appear here... ]</p>
-  <p style="text-align:center;">
-    <a href="./console.html">Return to Console</a>
-  </p>
-</div>
-<script>
-  if (sessionStorage.getItem('adminAccess') !== 'true') {
-    document.body.innerHTML = `
-      <div class="console-box">
-        <p class="warning">ACCESS DENIED</p>
-        <p>You are not authorized to view this page.</p>
-        <p><a href='./home.html'>Return to Login</a></p>
-      </div>`;
-  }
-</script>
-        
+  <div class="right">
+    <h3>Live Preview</h3>
+    <pre id="preview"></pre>
+  </div>
+
+  <script>
+    const tableBody = document.querySelector("#membersTable tbody");
+    const preview = document.getElementById("preview");
+
+    function updatePreview() {
+      const data = [];
+      const rows = tableBody.querySelectorAll("tr");
+      rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+        data.push({
+          id: cells[0].innerText.trim(),
+          name: cells[1].innerText.trim(),
+          email: cells[2].innerText.trim(),
+          role: cells[3].innerText.trim()
+        });
+      });
+      preview.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function addRow(id = '', name = '', email = '', role = '') {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td contenteditable="true">${id}</td>
+        <td contenteditable="true">${name}</td>
+        <td contenteditable="true">${email}</td>
+        <td contenteditable="true">${role}</td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">Delete</button></td>
+      `;
+      tableBody.appendChild(row);
+      attachCellListeners(row);
+      updatePreview();
+    }
+
+    function deleteRow(button) {
+      if (confirm("Are you sure you want to delete this member?")) {
+        const row = button.closest("tr");
+        row.remove();
+        updatePreview();
+      }
+    }
+
+    function attachCellListeners(row) {
+      row.querySelectorAll("td[contenteditable]").forEach(cell => {
+        cell.addEventListener("input", updatePreview);
+      });
+    }
+
+    // Add an initial empty row
+    addRow();
+  </script>
 </body>
 </html>
