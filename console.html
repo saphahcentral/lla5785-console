@@ -3,26 +3,92 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Console Selector</title>
-  <link rel="stylesheet" href="./style.css" />
+  <title>LLA5785 Console</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef6ff;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      color: #003366;
+    }
+    .console-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      padding: 30px;
+    }
+    h1 {
+      color: #004080;
+    }
+    .menu-button {
+      display: block;
+      margin: 15px auto;
+      padding: 14px 30px;
+      background-color: #0066cc;
+      color: white;
+      font-size: 1.1em;
+      font-weight: bold;
+      border-radius: 8px;
+      text-decoration: none;
+      width: 80%;
+      max-width: 300px;
+      transition: background-color 0.3s;
+    }
+    .menu-button:hover {
+      background-color: #004d99;
+    }
+    .sign-out {
+      margin-top: 30px;
+      background-color: #cc0000;
+    }
+  </style>
 </head>
 <body>
+  <div class="console-container">
+    <h1>LLA5785 Admin Console</h1>
+    <p id="welcome">Checking authentication...</p>
 
-    <div class="console-header">
-      ** LIGHTHOUSE LIFETIME ADMIN CONSOLE **
-    </div>
-    <div class="console-block">
-      <p>Select a function:</p>
-      <a class="console-option" href="./members.html">[1] Maintain Member Database</a>
-      <a class="console-option" href="./ads.html">[2] Maintain Ad List</a>
-      <a class="console-option" href="./backup.html">[3] Manual Backup</a>
-      <a class="console-option" href="./propagate.html">[4] Propagate from Google Sheets</a>
-      <a class="console-option" href="./logout.html">[0] Logout</a>
-    </div>
-    <div class="console-footer">
-      Admin access only — bessingerbackup2024@gmail.com & duckbusiness2024a@gmail.com<br />
-      Use with care. Console v1.0 (2025)
-    </div>
-        
+    <a href="ads.html" class="menu-button">📢 Review Ads Database</a>
+    <a href="members.html" class="menu-button">👥 Review Members Database</a>
+    <a href="backup.html" class="menu-button">💾 Backup Databases</a>
+    <a href="propagate.html" class="menu-button">🔄 Propagate from Google Sheets</a>
+
+    <button id="sign-out" class="menu-button sign-out">🚪 Sign Out</button>
+  </div>
+
+  <!-- Firebase App and Auth -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+      authDomain: "lla5785v3-0.firebaseapp.com",
+      projectId: "lla5785v3-0",
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const allowedEmail = "bessingerbackup2024@gmail.com";
+
+    onAuthStateChanged(auth, (user) => {
+      if (user && user.email === allowedEmail) {
+        document.getElementById("welcome").textContent = "Welcome, " + (user.displayName || user.email);
+      } else {
+        alert("Unauthorized access. Redirecting to login...");
+        window.location.href = "index.html";
+      }
+    });
+
+    document.getElementById("sign-out").addEventListener("click", () => {
+      signOut(auth).then(() => {
+        window.location.href = "index.html";
+      });
+    });
+  </script>
 </body>
 </html>
