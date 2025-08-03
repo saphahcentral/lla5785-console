@@ -4,34 +4,66 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Logout</title>
-  <link rel="stylesheet" href="./style.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef6ff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .console-box {
+      background-color: white;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      max-width: 500px;
+    }
+    h1 {
+      color: #cc0000;
+    }
+    a {
+      color: #0066cc;
+      font-weight: bold;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
 
-    <div class="console-box">
-      <h1>** ADMIN LOGOUT **</h1>
-      <p>Session ended successfully.</p>
-      <p>You are now logged out of the Lighthouse Admin Console.</p>
-      <a href="./home.html">[ Return to Login Screen ]</a>
-    </div>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
-    <script>
-      const firebaseConfig = {
-        apiKey: "AIzaSyA6u9eYk8_WpU1Kwtx1dRka38EvX7A6vLo",
-        authDomain: "lla5785.firebaseapp.com",
-        projectId: "lla5785"
-      };
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      firebase.auth().signOut().then(() => {
-        sessionStorage.removeItem('adminAccess');
-        console.log('Signed out successfully');
-      }).catch((error) => {
-        console.error('Error during sign-out:', error);
-      });
-    </script>
-        
+  <div class="console-box">
+    <h1>** ADMIN LOGOUT **</h1>
+    <p>Session ended successfully.</p>
+    <p>You are now logged out of the Lighthouse Admin Console.</p>
+    <a href="./index.html">[ Return to Login Screen ]</a>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+      authDomain: "lla5785v3-0.firebaseapp.com",
+      projectId: "lla5785v3-0",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    signOut(auth).then(() => {
+      console.log('Signed out successfully');
+    }).catch((error) => {
+      console.error('Error during sign-out:', error);
+    });
+  </script>
+
 </body>
 </html>
