@@ -1,88 +1,126 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <title>Propagate from Sheets</title>
   <meta charset="UTF-8">
-  <title>Propagate Database</title>
-  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
-  <style>
-    body { font-family: monospace; padding: 20px; background: #f4f4f4; }
-    pre { background: white; padding: 10px; border: 1px solid #ccc; height: 600px; overflow: auto; }
-    button { padding: 10px 20px; font-size: 16px; }
-  </style>
 </head>
-<body>
-  <h2>Propagate Data from Google Sheets</h2>
-  <button onclick="startPropagation()">Start Propagation</button>
-  <pre id="log"></pre>
+<body style="font-family: monospace; background: #f0f0f0; padding: 2em;">
+  <h2>Propagate from Google Sheets</h2>
+  <button id="startBtn">Start Propagation</button>
+  <pre id="log" style="background: #000; color: #0f0; padding: 1em; height: 400px; overflow-y: scroll;"></pre>
 
   <script>
-    const log = msg => document.getElementById("log").textContent += msg + "\n";
+    const log = (msg) => {
+      const pre = document.getElementById('log');
+      pre.textContent += `>> ${msg}\n`;
+      pre.scrollTop = pre.scrollHeight;
+    };
 
     const firebaseConfig = {
-      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
-      authDomain: "lla5785v3-0.firebaseapp.com",
-      projectId: "lla5785v3-0",
-      storageBucket: "lla5785v3-0.firebasestorage.app",
-      messagingSenderId: "730972554331",
-      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
-      measurementId: "G-WZNQ24S4DM"
+      apiKey: "AIzaSyCN-BVqWjHJApKDHElS4JD84zGH0X88Zro",
+      authDomain: "lla5785.firebaseapp.com",
+      projectId: "lla5785",
+      storageBucket: "lla5785.appspot.com",
+      messagingSenderId: "1072960696740",
+      appId: "1:1072960696740:web:2db4fc613ac5bbd9fe6416"
     };
+
     firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
     const db = firebase.firestore();
 
-    const CLIENT_ID = '730972554331-vlbe1ifgjc5lcmntn66evk2r1qt3la13.apps.googleusercontent.com';
-    const API_KEY = firebaseConfig.apiKey;
-    const DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
-    const SCOPES = "https://www.googleapis.com/auth/spreadsheets.readonly";
+    let gapiInited = false;
 
-    const SPREADSHEET_ID = '1smzwrYHFMEQFLz28ydXL9xFgKuGqkRu6lyVWlKlqY1M';
-    const SHEETS = ["members1", "members2", "ads1", "ads2"];
+    const SHEET_ID = "1oI9FvfnrwON-AIlpxpNuT29l88lrxE25XIn3kGB5CyA";
+    const SHEETS = [
+      { name: "members1", collection: "members" },
+      { name: "members2", collection: "members" },
+      { name: "ads1", collection: "ad_list" },
+      { name: "ads2", collection: "both" }
+    ];
 
-    function startPropagation() {
-      gapi.load('client:auth2', async () => {
-        await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: DISCOVERY_DOCS, scope: SCOPES });
-        try {
-          await gapi.auth2.getAuthInstance().signIn();
-          log("✔ Signed into Google Sheets\n");
-          for (let sheetName of SHEETS) {
-            log(`--- Reading sheet: ${sheetName} ---`);
-            const res = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: sheetName });
-            const rows = res.result.values;
-            if (!rows || rows.length < 2) { log("No data found.\n"); continue; }
-            const headers = rows[0];
-
-            for (let i = 1; i < rows.length; i++) {
-              const row = rows[i];
-              const doc = {};
-              headers.forEach((h, idx) => doc[h.trim()] = row[idx]?.trim() || "");
-
-              if (sheetName.startsWith("members")) {
-                await addToCollection("members", "email", doc);
-              } else if (sheetName.startsWith("ads")) {
-                await addToCollection("ad_list", "id", doc);
-                if (sheetName === "ads2") await addToCollection("members", "email", doc);
-              }
-            }
-          }
-          log("\n✔ All sheets processed.\n");
-        } catch (err) {
-          log("✘ Error: " + err.message);
-        }
+    const initGapi = () => {
+      gapi.load('client', async () => {
+        await gapi.client.init({
+          apiKey: firebaseConfig.apiKey,
+          discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"]
+        });
+        gapiInited = true;
       });
-    }
+    };
 
-    async function addToCollection(collection, uniqueField, data) {
-      const snapshot = await db.collection(collection).where(uniqueField, "==", data[uniqueField]).get();
-      if (!snapshot.empty) {
-        log(`[SKIP] ${collection}: ${data[uniqueField]}`);
-        return;
+    const getSheetData = async (sheetName) => {
+      const res = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: `${sheetName}`
+      });
+      return res.result.values;
+    };
+
+    const processSheet = async (sheet) => {
+      log(`Reading ${sheet.name}...`);
+      const data = await getSheetData(sheet.name);
+      if (!data || data.length < 2) return log(`No data in ${sheet.name}`);
+
+      const headers = data[0];
+      const rows = data.slice(1);
+
+      for (const row of rows) {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = row[i] || "");
+
+        let emailKey = obj.email || obj.uid || obj.title || JSON.stringify(obj);
+        let adKey = obj.uid || obj.email || obj.title || JSON.stringify(obj);
+
+        const writeTo = sheet.collection === "both"
+          ? ["members", "ad_list"]
+          : [sheet.collection];
+
+        for (const col of writeTo) {
+          const key = col === "members" ? emailKey : adKey;
+          const ref = db.collection(col).doc(key);
+          const snap = await ref.get();
+
+          if (snap.exists) {
+            log(`Skipped in ${col}: ${key}`);
+          } else {
+            await ref.set(obj);
+            log(`Added to ${col}: ${key}`);
+          }
+        }
       }
-      await db.collection(collection).add(data);
-      log(`[ADD]  ${collection}: ${data[uniqueField]}`);
-    }
+
+      log(`COMMIT COMPLETE for ${sheet.name}`);
+    };
+
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      if (!gapiInited) await initGapi();
+
+      auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+          await auth.signInWithPopup(provider);
+        }
+
+        for (const sheet of SHEETS) {
+          try {
+            await processSheet(sheet);
+          } catch (err) {
+            log(`ERROR processing ${sheet.name}: ${err.message}`);
+          }
+        }
+
+        log("\nALL SHEETS PROCESSED.");
+      });
+    });
+
+    initGapi();
   </script>
 </body>
 </html>
