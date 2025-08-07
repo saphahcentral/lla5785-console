@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LLA5785 Propagation</title>
   <style>
     body {
@@ -36,7 +36,7 @@
       padding: 10px;
       width: 100%;
       max-width: 960px;
-      max-height: 160px;
+      max-height: 180px;
       overflow-y: auto;
       white-space: pre-wrap;
     }
@@ -99,7 +99,6 @@
           let saved = 0, skipped = 0;
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            if (row.every(cell => !cell.trim())) continue; // Skip blank rows
             const data = Object.fromEntries(headers.map((h, j) => [h, row[j] || ""]));
             const id = data.email || data.Timestamp || `${type}_${i}`;
             const refPath = type === "ads" ? "ad_list" : "members";
