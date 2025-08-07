@@ -1,99 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Propagate Data to Firestore</title>
-  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
-</head>
-<body>
-  <h1>Firestore Propagation Console</h1>
-  <button id="start">Start Propagation</button>
-  <pre id="log"></pre>
+  <title>Data Propagation</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js";
+    import { getFirestore, collection, setDoc, doc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js";
 
-  <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
-      projectId: "lla5785v3-0",
-      storageBucket: "lla5785v3-0.appspot.com",
-      messagingSenderId: "730972554331",
-      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
-      measurementId: "G-WZNQ24S4DM"
+      projectId: "lla5785v3-0"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    const log = (msg) => {
-      document.getElementById("log").textContent += msg + "\n";
-      console.log(msg);
+    const csvUrls = {
+      members: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv",
+      ads: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv",
+      testimonials: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv"
     };
 
-    const fetchCSV = async (url) => {
+    async function fetchCSV(url) {
       const res = await fetch(url);
       const text = await res.text();
-      const [headerLine, ...lines] = text.trim().split("\n");
-      const headers = headerLine.split(",");
+      const [headerLine, ...lines] = text.trim().split('\n');
+      const headers = headerLine.split(',');
       return lines.map(line => {
-        const values = line.split(",");
-        const obj = {};
-        headers.forEach((h, i) => obj[h.trim()] = values[i]?.trim());
-        return obj;
+        const data = {};
+        line.split(',').forEach((val, i) => data[headers[i]] = val);
+        return data;
       });
-    };
+    }
 
-    const propagateData = async () => {
-      log("Starting propagation...");
+    async function propagateData() {
+      const members = await fetchCSV(csvUrls.members);
+      const ads = await fetchCSV(csvUrls.ads);
+      const testimonials = await fetchCSV(csvUrls.testimonials);
 
-      // MEMBERS
-      const membersCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv";
-      const members = await fetchCSV(membersCSV);
+      // Store members
       for (const member of members) {
-        if (!member.Email) continue;
-        await db.collection("members").doc(member.Email).set(member);
-        log(`Member: ${member.Email} written`);
-      }
-
-      // ADS
-      const adsCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv";
-      const ads = await fetchCSV(adsCSV);
-      for (const ad of ads) {
-        const docId = ad.Email ? ad.Email + "_" + (ad.Title || "ad") : undefined;
-        if (!docId) continue;
-        await db.collection("ad_list").doc(docId).set(ad);
-        log(`Ad: ${docId} written`);
-      }
-
-      // TESTIMONIALS
-      const testimonialsCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv";
-      const testimonials = await fetchCSV(testimonialsCSV);
-      for (const testimonial of testimonials) {
-        const email = testimonial.Email;
+        const email = member["Email Address"]?.toLowerCase();
         if (!email) continue;
-        await db.collection("members").doc(email).update({
-          testimonial: testimonial.Testimonial,
-          rating: testimonial.Rating,
-        });
-        log(`Testimonial for ${email} updated`);
+        await setDoc(doc(db, "members", email), member);
       }
 
-      log("Propagation complete.");
-    };
-
-    firebase.auth().onAuthStateChanged(async user => {
-      if (user) {
-        log("Authenticated as admin: " + user.email);
-        document.getElementById("start").addEventListener("click", propagateData);
-      } else {
-        log("Signing in...");
-        const provider = new firebase.auth.GoogleAuthProvider();
-        firebase.auth().signInWithPopup(provider).catch(err => {
-          log("Auth error: " + err.message);
-        });
+      // Store ads
+      for (const ad of ads) {
+        await setDoc(doc(collection(db, "ad_list")), ad);
       }
-    });
+
+      // Update testimonials in members by matching email
+      for (const t of testimonials) {
+        const email = t["Email Address"]?.toLowerCase();
+        if (!email) continue;
+        const memberRef = doc(db, "members", email);
+        await setDoc(memberRef, { testimonial: t["Testimonial"] }, { merge: true });
+      }
+
+      console.log("Data propagation complete.");
+    }
+
+    propagateData().catch(console.error);
   </script>
+</head>
+<body>
+  <h1>Propagating Data to Firestore...</h1>
 </body>
 </html>
