@@ -1,126 +1,135 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Propagate from Sheets</title>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <meta charset="UTF-8" />
+  <title>Propagate Console</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
 </head>
-<body style="font-family: monospace; background: #f0f0f0; padding: 2em;">
-  <h2>Propagate from Google Sheets</h2>
-  <button id="startBtn">Start Propagation</button>
-  <pre id="log" style="background: #000; color: #0f0; padding: 1em; height: 400px; overflow-y: scroll;"></pre>
+<body>
+  <h2>LLA5785 Database Propagation</h2>
+  <button id="startBtn">START PROPAGATION</button>
+  <pre id="log" style="background:#000;color:#0f0;padding:1em;height:600px;overflow:auto;"></pre>
 
   <script>
     const log = (msg) => {
-      const pre = document.getElementById('log');
-      pre.textContent += `>> ${msg}\n`;
-      pre.scrollTop = pre.scrollHeight;
+      const el = document.getElementById('log');
+      el.textContent += msg + "\n";
+      el.scrollTop = el.scrollHeight;
     };
 
+    // Firebase config
     const firebaseConfig = {
-      apiKey: "AIzaSyCN-BVqWjHJApKDHElS4JD84zGH0X88Zro",
-      authDomain: "lla5785.firebaseapp.com",
-      projectId: "lla5785",
-      storageBucket: "lla5785.appspot.com",
-      messagingSenderId: "1072960696740",
-      appId: "1:1072960696740:web:2db4fc613ac5bbd9fe6416"
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+      authDomain: "lla5785v3-0.firebaseapp.com",
+      projectId: "lla5785v3-0",
+      storageBucket: "lla5785v3-0.firebasestorage.app",
+      messagingSenderId: "730972554331",
+      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
+      measurementId: "G-WZNQ24S4DM"
     };
 
     firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
     const db = firebase.firestore();
 
-    let gapiInited = false;
+    // Google API setup
+    const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+    const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v4'];
+    const SHEET_ID = '1zK5Yy2mnQe2YYGkZkpSNo7yAdn0x8VpMFJ_l_dUtRLU';
 
-    const SHEET_ID = "1oI9FvfnrwON-AIlpxpNuT29l88lrxE25XIn3kGB5CyA";
-    const SHEETS = [
-      { name: "members1", collection: "members" },
-      { name: "members2", collection: "members" },
-      { name: "ads1", collection: "ad_list" },
-      { name: "ads2", collection: "both" }
-    ];
-
-    const initGapi = () => {
-      gapi.load('client', async () => {
-        await gapi.client.init({
-          apiKey: firebaseConfig.apiKey,
-          discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"]
+    const loadGapi = () => {
+      return new Promise((resolve) => {
+        gapi.load('client:auth2', async () => {
+          await gapi.client.init({
+            apiKey: firebaseConfig.apiKey,
+            clientId: '730972554331-v0k2biop8qfpmig7km7j6oklqcu9jssk.apps.googleusercontent.com',
+            discoveryDocs: DISCOVERY_DOCS,
+            scope: SCOPES,
+          });
+          resolve();
         });
-        gapiInited = true;
       });
     };
 
-    const getSheetData = async (sheetName) => {
+    const getSheet = async (range) => {
+      log(`Reading sheet: ${range}`);
       const res = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: `${sheetName}`
+        range: range,
       });
       return res.result.values;
     };
 
-    const processSheet = async (sheet) => {
-      log(`Reading ${sheet.name}...`);
-      const data = await getSheetData(sheet.name);
-      if (!data || data.length < 2) return log(`No data in ${sheet.name}`);
+    const recordExists = async (collection, docId) => {
+      const doc = await db.collection(collection).doc(docId).get();
+      return doc.exists;
+    };
 
-      const headers = data[0];
-      const rows = data.slice(1);
+    const upsertRecord = async (collection, docId, data) => {
+      await db.collection(collection).doc(docId).set(data);
+    };
 
-      for (const row of rows) {
-        const obj = {};
-        headers.forEach((h, i) => obj[h] = row[i] || "");
+    const processSheet = async (rows, collection, idField, dualWrite = false) => {
+      const headers = rows[0];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const data = {};
+        headers.forEach((h, j) => data[h] = row[j] || '');
 
-        let emailKey = obj.email || obj.uid || obj.title || JSON.stringify(obj);
-        let adKey = obj.uid || obj.email || obj.title || JSON.stringify(obj);
+        const docId = data[idField];
+        if (!docId) {
+          log(`Skipping row ${i + 1}: Missing ${idField}`);
+          continue;
+        }
 
-        const writeTo = sheet.collection === "both"
-          ? ["members", "ad_list"]
-          : [sheet.collection];
+        if (await recordExists(collection, docId)) {
+          log(`Skipping existing: ${collection}/${docId}`);
+        } else {
+          await upsertRecord(collection, docId, data);
+          log(`Added to ${collection}: ${docId}`);
+        }
 
-        for (const col of writeTo) {
-          const key = col === "members" ? emailKey : adKey;
-          const ref = db.collection(col).doc(key);
-          const snap = await ref.get();
-
-          if (snap.exists) {
-            log(`Skipped in ${col}: ${key}`);
-          } else {
-            await ref.set(obj);
-            log(`Added to ${col}: ${key}`);
+        if (dualWrite && collection === 'ad_list') {
+          const memberId = data.email || data.uid || docId;
+          if (memberId) {
+            const memberData = {
+              uid: memberId,
+              email: data.email || '',
+              level: data.level || 'FREE',
+              origin: 'ads2'
+            };
+            if (!(await recordExists('members', memberId))) {
+              await upsertRecord('members', memberId, memberData);
+              log(`Also added to members: ${memberId}`);
+            }
           }
         }
       }
-
-      log(`COMMIT COMPLETE for ${sheet.name}`);
     };
 
-    document.getElementById('startBtn').addEventListener('click', async () => {
-      if (!gapiInited) await initGapi();
+    const runPropagation = async () => {
+      log("=== STARTING PROPAGATION ===");
+      await loadGapi();
+      await gapi.auth2.getAuthInstance().signIn();
 
-      auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-          const provider = new firebase.auth.GoogleAuthProvider();
-          provider.setCustomParameters({ prompt: 'select_account' });
-          await auth.signInWithPopup(provider);
-        }
+      const members1 = await getSheet("members1");
+      await processSheet(members1, 'members', 'uid');
 
-        for (const sheet of SHEETS) {
-          try {
-            await processSheet(sheet);
-          } catch (err) {
-            log(`ERROR processing ${sheet.name}: ${err.message}`);
-          }
-        }
+      const members2 = await getSheet("members2");
+      await processSheet(members2, 'members', 'uid');
 
-        log("\nALL SHEETS PROCESSED.");
-      });
-    });
+      const ads1 = await getSheet("ads1");
+      await processSheet(ads1, 'ad_list', 'id');
 
-    initGapi();
+      const ads2 = await getSheet("ads2");
+      await processSheet(ads2, 'ad_list', 'id', true);
+
+      log("=== PROPAGATION COMPLETE ===");
+    };
+
+    document.getElementById('startBtn').onclick = runPropagation;
   </script>
 </body>
 </html>
