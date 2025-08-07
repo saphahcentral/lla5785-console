@@ -1,26 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Propagate Console</title>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-  <script src="https://apis.google.com/js/api.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LLA5785 Propagate Console</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f9ff;
+      color: #333;
+    }
+    h1 {
+      color: #003366;
+    }
+    #start-btn {
+      font-size: 18px;
+      padding: 12px 25px;
+      background-color: #0078d4;
+      border: none;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    #log {
+      white-space: pre-wrap;
+      background: #eef6ff;
+      border: 1px solid #ccc;
+      padding: 15px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 14px;
+      border-radius: 5px;
+    }
+  </style>
 </head>
 <body>
-  <h2>LLA5785 Database Propagation</h2>
-  <button id="startBtn">START PROPAGATION</button>
-  <pre id="log" style="background:#000;color:#0f0;padding:1em;height:600px;overflow:auto;"></pre>
 
-  <script>
-    const log = (msg) => {
-      const el = document.getElementById('log');
-      el.textContent += msg + "\n";
-      el.scrollTop = el.scrollHeight;
-    };
+  <h1>LLA5785 Propagate Console</h1>
+  <button id="start-btn">START PROPAGATE</button>
+  <pre id="log"></pre>
 
-    // Firebase config
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getFirestore, collection, getDocs, doc, setDoc
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import {
+      getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    // Use your **correct** Firebase config here:
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
@@ -31,105 +64,175 @@
       measurementId: "G-WZNQ24S4DM"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
 
-    // Google API setup
-    const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
-    const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v4'];
-    const SHEET_ID = '1zK5Yy2mnQe2YYGkZkpSNo7yAdn0x8VpMFJ_l_dUtRLU';
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
-    const loadGapi = () => {
-      return new Promise((resolve) => {
-        gapi.load('client:auth2', async () => {
-          await gapi.client.init({
+    const startBtn = document.getElementById('start-btn');
+    const logEl = document.getElementById('log');
+
+    // Google Sheets config:
+    const SHEET_ID = "YOUR_SHEET_ID_HERE";  // <-- Put your actual sheet ID here
+    const SHEETS = {
+      members1: "members1",
+      members2: "members2",
+      ads1: "ads1",
+      ads2: "ads2"
+    };
+
+    // Helper to log to console on page:
+    function log(msg) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Load Google API client library
+    function loadGapiClient() {
+      return new Promise((resolve, reject) => {
+        gapi.load('client', () => {
+          gapi.client.init({
             apiKey: firebaseConfig.apiKey,
-            clientId: '730972554331-v0k2biop8qfpmig7km7j6oklqcu9jssk.apps.googleusercontent.com',
-            discoveryDocs: DISCOVERY_DOCS,
-            scope: SCOPES,
-          });
-          resolve();
+            discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"],
+          }).then(() => {
+            resolve();
+          }).catch(err => reject(err));
         });
       });
-    };
+    }
 
-    const getSheet = async (range) => {
-      log(`Reading sheet: ${range}`);
-      const res = await gapi.client.sheets.spreadsheets.values.get({
+    // Fetch data from one sheet tab
+    async function fetchSheetData(sheetName) {
+      log(`Reading sheet: ${sheetName}`);
+      const response = await gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId: SHEET_ID,
-        range: range,
+        range: sheetName,
       });
-      return res.result.values;
-    };
-
-    const recordExists = async (collection, docId) => {
-      const doc = await db.collection(collection).doc(docId).get();
-      return doc.exists;
-    };
-
-    const upsertRecord = async (collection, docId, data) => {
-      await db.collection(collection).doc(docId).set(data);
-    };
-
-    const processSheet = async (rows, collection, idField, dualWrite = false) => {
+      const rows = response.result.values || [];
+      if (rows.length === 0) {
+        log(`No data found in sheet ${sheetName}.`);
+        return [];
+      }
+      // Assuming first row is headers
       const headers = rows[0];
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        const data = {};
-        headers.forEach((h, j) => data[h] = row[j] || '');
+      return rows.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = row[i] || "");
+        return obj;
+      });
+    }
 
-        const docId = data[idField];
-        if (!docId) {
-          log(`Skipping row ${i + 1}: Missing ${idField}`);
+    // Check if a document exists by id in a collection
+    async function docExists(collectionName, docId) {
+      const docRef = doc(db, collectionName, docId);
+      const docSnap = await getDocs(docRef);
+      return docSnap.exists();
+    }
+
+    // Add or skip records
+    async function addRecordsToCollection(collectionName, records, idField) {
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      for (const record of records) {
+        if (!record[idField]) {
+          log(`Skipping record with no ID field '${idField}'`);
+          skippedCount++;
           continue;
         }
-
-        if (await recordExists(collection, docId)) {
-          log(`Skipping existing: ${collection}/${docId}`);
+        const docRef = doc(db, collectionName, record[idField]);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          log(`Skipping existing ${collectionName} record ID: ${record[idField]}`);
+          skippedCount++;
         } else {
-          await upsertRecord(collection, docId, data);
-          log(`Added to ${collection}: ${docId}`);
-        }
-
-        if (dualWrite && collection === 'ad_list') {
-          const memberId = data.email || data.uid || docId;
-          if (memberId) {
-            const memberData = {
-              uid: memberId,
-              email: data.email || '',
-              level: data.level || 'FREE',
-              origin: 'ads2'
-            };
-            if (!(await recordExists('members', memberId))) {
-              await upsertRecord('members', memberId, memberData);
-              log(`Also added to members: ${memberId}`);
-            }
-          }
+          await setDoc(docRef, record);
+          log(`Added new ${collectionName} record ID: ${record[idField]}`);
+          addedCount++;
         }
       }
-    };
+      log(`Finished ${collectionName}: Added ${addedCount}, Skipped ${skippedCount}\n`);
+    }
 
-    const runPropagation = async () => {
-      log("=== STARTING PROPAGATION ===");
-      await loadGapi();
-      await gapi.auth2.getAuthInstance().signIn();
+    async function propagate() {
+      startBtn.disabled = true;
+      logEl.textContent = "";  // Clear logs
 
-      const members1 = await getSheet("members1");
-      await processSheet(members1, 'members', 'uid');
+      try {
+        await loadGapiClient();
 
-      const members2 = await getSheet("members2");
-      await processSheet(members2, 'members', 'uid');
+        // Fetch all sheets data
+        const members1Data = await fetchSheetData(SHEETS.members1);
+        const members2Data = await fetchSheetData(SHEETS.members2);
+        const ads1Data = await fetchSheetData(SHEETS.ads1);
+        const ads2Data = await fetchSheetData(SHEETS.ads2);
 
-      const ads1 = await getSheet("ads1");
-      await processSheet(ads1, 'ad_list', 'id');
+        // Add to members collection
+        await addRecordsToCollection("members", members1Data, "id");
+        await addRecordsToCollection("members", members2Data, "id");
 
-      const ads2 = await getSheet("ads2");
-      await processSheet(ads2, 'ad_list', 'id', true);
+        // Add to ad_list collection
+        await addRecordsToCollection("ad_list", ads1Data, "id");
 
-      log("=== PROPAGATION COMPLETE ===");
-    };
+        // ads2 sheet contains mixed data, add accordingly:
+        // Let's assume ads2 sheet has a field 'type' to separate members vs ads
+        const membersFromAds2 = ads2Data.filter(r => r.type && r.type.toLowerCase() === "member");
+        const adsFromAds2 = ads2Data.filter(r => r.type && r.type.toLowerCase() === "ad");
 
-    document.getElementById('startBtn').onclick = runPropagation;
+        await addRecordsToCollection("members", membersFromAds2, "id");
+        await addRecordsToCollection("ad_list", adsFromAds2, "id");
+
+        log("All propagation complete!");
+      } catch (err) {
+        log("Error during propagation: " + err.message);
+      } finally {
+        startBtn.disabled = false;
+      }
+    }
+
+    // Authenticate admin user first
+    function authenticateAdmin() {
+      return new Promise((resolve, reject) => {
+        signInWithPopup(auth, provider)
+          .then(result => {
+            if (result.user.email === ADMIN_EMAIL) {
+              log("Admin authenticated: " + result.user.email);
+              resolve();
+            } else {
+              log("Access denied: Unauthorized user.");
+              reject(new Error("Unauthorized user"));
+            }
+          })
+          .catch(err => reject(err));
+      });
+    }
+
+    startBtn.addEventListener('click', async () => {
+      try {
+        startBtn.disabled = true;
+        log("Signing in...");
+        await authenticateAdmin();
+        log("Starting propagation...");
+        await propagate();
+      } catch (err) {
+        log("Authentication failed: " + err.message);
+      } finally {
+        startBtn.disabled = false;
+      }
+    });
+
+    // Load GAPI script dynamically
+    (function loadGapi() {
+      const script = document.createElement('script');
+      script.src = "https://apis.google.com/js/api.js";
+      script.onload = () => log("Google API client loaded.");
+      script.onerror = () => log("Failed to load Google API client.");
+      document.body.appendChild(script);
+    })();
+
   </script>
+
 </body>
 </html>
