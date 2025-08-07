@@ -36,7 +36,7 @@
       padding: 10px;
       width: 100%;
       max-width: 960px;
-      max-height: 300px;
+      max-height: 160px;
       overflow-y: auto;
       white-space: pre-wrap;
     }
@@ -49,7 +49,7 @@
 
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getFirestore, collection, doc, getDocs, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+    import { getFirestore, collection, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
     import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 
     const firebaseConfig = {
@@ -69,36 +69,17 @@
     const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
     const dataSources = [
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv",
-        type: "members",
-        name: "Members Sheet 1"
-      },
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv",
-        type: "members",
-        name: "Members Sheet 2"
-      },
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTjS7YSEsP0f-8D6uZkGZRYPrhXfQ3yTeoz9q3IfaVy73h3JLjN24LXzvG8R2RjR0KzpFWBVR9hrf9/pub?output=csv",
-        type: "ads",
-        name: "Ads Sheet 1"
-      },
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAFtuIz-ukv4kKXXqblhsdlrrjgM5PTaV2ULZlX8ZmQ5QnrmmD-ovWCVPrNJ9sX_q23OtFeyHZtRj9/pub?output=csv",
-        type: "ads",
-        name: "Ads Sheet 2"
-      },
-      {
-        url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv",
-        type: "testimonials",
-        name: "Testimonials"
-      }
+      { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv", type: "members", name: "Members Sheet 1" },
+      { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv", type: "members", name: "Members Sheet 2" },
+      { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTjS7YSEsP0f-8D6uZkGZRYPrhXfQ3yTeoz9q3IfaVy73h3JLjN24LXzvG8R2RjR0KzpFWBVR9hrf9/pub?output=csv", type: "ads", name: "Ads Sheet 1" },
+      { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRAFtuIz-ukv4kKXXqblhsdlrrjgM5PTaV2ULZlX8ZmQ5QnrmmD-ovWCVPrNJ9sX_q23OtFeyHZtRj9/pub?output=csv", type: "ads", name: "Ads Sheet 2" },
+      { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv", type: "testimonials", name: "Testimonials" }
     ];
 
     function log(msg) {
       console.log(msg);
       logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
     async function fetchCSV(url) {
@@ -109,41 +90,49 @@
 
     async function propagate() {
       log("Starting propagation...");
-      let saved = 0, skipped = 0;
+      let totalSaved = 0, totalSkipped = 0;
       for (const { url, type, name } of dataSources) {
-        log(`\nProcessing: ${name}`);
+        log(`\nFetching ${name}...`);
         try {
           const rows = await fetchCSV(url);
           const headers = rows[0];
+          let saved = 0, skipped = 0;
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            const data = Object.fromEntries(headers.map((h, j) => [h, row[j]]));
-            const id = data.email || data.timestamp || `${type}_${i}`;
-            const ref = doc(db, type === "ads" ? "ad_list" : type === "members" ? "members" : "members", id);
+            if (row.every(cell => !cell.trim())) continue; // Skip blank rows
+            const data = Object.fromEntries(headers.map((h, j) => [h, row[j] || ""]));
+            const id = data.email || data.Timestamp || `${type}_${i}`;
+            const refPath = type === "ads" ? "ad_list" : "members";
+            const ref = doc(db, refPath, id);
 
-            if (type === "testimonials") {
-              await setDoc(ref, { testimonial: data.testimonial }, { merge: true });
-              log(`${data.email || "(unknown email)"} – Testimonial updated`);
-              saved++;
-            } else {
-              const snapshot = await getDocs(collection(db, type === "ads" ? "ad_list" : "members"));
-              const exists = snapshot.docs.some(doc => doc.id === id);
-              if (exists) {
-                log(`${data.email || id} – Skipped (exists)`);
-                skipped++;
-              } else {
-                if (Object.values(data).every(v => v === "")) continue; // skip empty
-                await setDoc(ref, data);
-                log(`${data.email || id} – Saved`);
+            try {
+              if (type === "testimonials") {
+                await setDoc(doc(db, "members", id), { testimonial: data.testimonial || "" }, { merge: true });
+                log(`${id} – Testimonial updated`);
                 saved++;
+              } else {
+                const docSnap = await getDoc(ref);
+                if (docSnap.exists()) {
+                  log(`${id} – Skipped (exists)`);
+                  skipped++;
+                } else {
+                  await setDoc(ref, data);
+                  log(`${id} – Saved`);
+                  saved++;
+                }
               }
+            } catch (innerErr) {
+              log(`${id} – ❌ ${innerErr.message}`);
             }
           }
+          log(`✅ ${name}: ${saved} saved, ${skipped} skipped.`);
+          totalSaved += saved;
+          totalSkipped += skipped;
         } catch (err) {
-          log(`Error processing ${name}: ${err.message}`);
+          log(`❌ Failed ${name}: ${err.message}`);
         }
       }
-      log(`\nPropagation complete. ${saved} saved, ${skipped} skipped.`);
+      log(`\nDone. Total saved: ${totalSaved}, skipped: ${totalSkipped}`);
     }
 
     document.getElementById("startBtn").addEventListener("click", () => {
