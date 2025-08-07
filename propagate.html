@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LLA5785 Propagation</title>
+  <title>LLA5785 Propagation Console</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f5f5f5;
+      background: #f5f5f5;
       margin: 0;
       padding: 20px;
       display: flex;
@@ -16,22 +16,24 @@
     }
     h1 {
       color: #003366;
+      margin-bottom: 0;
     }
     button {
-      padding: 10px 20px;
+      padding: 10px 24px;
       font-size: 16px;
-      margin: 20px 0;
+      margin: 15px 0 10px;
       border: none;
       background-color: #4285f4;
       color: white;
       border-radius: 5px;
       cursor: pointer;
+      user-select: none;
     }
     button:hover {
       background-color: #357ae8;
     }
     pre {
-      background: #ffffff;
+      background: white;
       border: 1px solid #ccc;
       padding: 10px;
       width: 100%;
@@ -39,6 +41,9 @@
       max-height: 180px;
       overflow-y: auto;
       white-space: pre-wrap;
+      box-sizing: border-box;
+      font-size: 13px;
+      line-height: 1.3em;
     }
   </style>
 </head>
@@ -49,7 +54,7 @@
 
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getFirestore, collection, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+    import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
     import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
 
     const firebaseConfig = {
@@ -65,9 +70,10 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const logEl = document.getElementById("log");
+    const logEl = document.getElementById('log');
     const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
+    // CSV data sources for propagation
     const dataSources = [
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv", type: "members", name: "Members Sheet 1" },
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv", type: "members", name: "Members Sheet 2" },
@@ -79,65 +85,127 @@
     function log(msg) {
       console.log(msg);
       logEl.textContent += msg + "\n";
+      // Auto-scroll down
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    // Parse CSV string into array of objects (handles quoted commas)
     async function fetchCSV(url) {
       const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to fetch CSV: ${res.status} ${res.statusText}`);
       const text = await res.text();
-      return text.trim().split("\n").map(row => row.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, '')));
+
+      // Split into lines and parse rows safely
+      const lines = text.trim().split(/\r?\n/);
+      const rows = lines.map(line => {
+        // Simple CSV parser handling quotes
+        const cells = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"'; i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (c === ',' && !inQuotes) {
+            cells.push(current);
+            current = '';
+          } else {
+            current += c;
+          }
+        }
+        cells.push(current);
+        return cells;
+      });
+
+      const headers = rows[0];
+      const dataRows = rows.slice(1);
+
+      return { headers, dataRows };
     }
 
     async function propagate() {
+      log("");
       log("Starting propagation...");
       let totalSaved = 0, totalSkipped = 0;
+
       for (const { url, type, name } of dataSources) {
-        log(`\nFetching ${name}...`);
+        log("");
+        log(`=== Fetching ${name} ===`);
         try {
-          const rows = await fetchCSV(url);
-          const headers = rows[0];
+          const { headers, dataRows } = await fetchCSV(url);
+
           let saved = 0, skipped = 0;
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i];
-            const data = Object.fromEntries(headers.map((h, j) => [h, row[j] || ""]));
-            const id = data.email || data.Timestamp || `${type}_${i}`;
-            const refPath = type === "ads" ? "ad_list" : "members";
-            const ref = doc(db, refPath, id);
+          for (let i = 0; i < dataRows.length; i++) {
+            const row = dataRows[i];
+            const data = {};
+            for (let h = 0; h < headers.length; h++) {
+              const key = headers[h].trim();
+              let val = row[h] ?? "";
+              if (val === undefined || val === null) val = "";
+              data[key] = val;
+            }
+
+            // Document ID preference order: email, Timestamp, else fallback
+            let id = data.email || data.Timestamp || `${type}_${i}`;
+
+            // Choose Firestore collection path
+            let collectionPath = type === "ads" ? "ad_list" : "members";
+            if (type === "testimonials") {
+              // For testimonials, id is email and we merge testimonial field only
+              id = data.email || data.Timestamp || `testimonial_${i}`;
+            }
+
+            const docRef = doc(db, collectionPath, id);
 
             try {
               if (type === "testimonials") {
-                await setDoc(doc(db, "members", id), { testimonial: data.testimonial || "" }, { merge: true });
-                log(`${id} – Testimonial updated`);
+                if (!data.testimonial) {
+                  log(`Skipped testimonial for ${id} - no testimonial text`);
+                  skipped++;
+                  continue;
+                }
+                // Update testimonial field only (merge)
+                await setDoc(doc(db, "members", id), { testimonial: data.testimonial }, { merge: true });
+                log(`Testimonial updated for ${id}`);
                 saved++;
               } else {
-                const docSnap = await getDoc(ref);
+                const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                  log(`${id} – Skipped (exists)`);
+                  log(`Skipped existing record ${id}`);
                   skipped++;
                 } else {
-                  await setDoc(ref, data);
-                  log(`${id} – Saved`);
+                  await setDoc(docRef, data);
+                  log(`Saved new record ${id}`);
                   saved++;
                 }
               }
-            } catch (innerErr) {
-              log(`${id} – ❌ ${innerErr.message}`);
+            } catch (e) {
+              log(`❌ Error saving ${id}: ${e.message}`);
             }
           }
-          log(`✅ ${name}: ${saved} saved, ${skipped} skipped.`);
+          log(`=== Done with ${name}: Saved ${saved}, Skipped ${skipped} ===`);
           totalSaved += saved;
           totalSkipped += skipped;
-        } catch (err) {
-          log(`❌ Failed ${name}: ${err.message}`);
+        } catch (e) {
+          log(`❌ Failed to fetch/process ${name}: ${e.message}`);
         }
       }
-      log(`\nDone. Total saved: ${totalSaved}, skipped: ${totalSkipped}`);
+
+      log("");
+      log(`Propagation complete. Total saved: ${totalSaved}, total skipped: ${totalSkipped}`);
     }
 
     document.getElementById("startBtn").addEventListener("click", () => {
       onAuthStateChanged(auth, user => {
-        if (user?.email === ADMIN_EMAIL) propagate();
-        else alert("Unauthorized access");
+        if (user && user.email === ADMIN_EMAIL) {
+          propagate();
+        } else {
+          alert("Unauthorized user - propagation cancelled.");
+        }
       });
     });
   </script>
