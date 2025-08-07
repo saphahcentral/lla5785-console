@@ -1,263 +1,99 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LLA5785 Console - Propagate Data</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 1rem;
-      background: #f5faff;
-      color: #003366;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 1rem;
-    }
-    #output {
-      background: #eef6ff;
-      border: 1px solid #99bbff;
-      padding: 1rem;
-      height: 400px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      font-family: monospace;
-      margin-bottom: 1rem;
-    }
-    button {
-      display: block;
-      margin: 0 auto;
-      background-color: #4285f4;
-      border: none;
-      color: white;
-      padding: 15px 30px;
-      font-size: 18px;
-      border-radius: 8px;
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      transition: background-color 0.3s ease;
-    }
-    button:hover {
-      background-color: #357ae8;
-    }
-  </style>
+  <title>Propagate Data to Firestore</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
+  <h1>Firestore Propagation Console</h1>
+  <button id="start">Start Propagation</button>
+  <pre id="log"></pre>
 
-  <h1>LLA5785 Console - Propagate Data from Sheets</h1>
-
-  <div id="output"></div>
-
-  <button id="start-btn">START PROPAGATE</button>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import {
-      getFirestore,
-      collection,
-      query,
-      where,
-      getDocs,
-      addDoc
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-    import {
-      getAuth,
-      signInWithPopup,
-      GoogleAuthProvider,
-      onAuthStateChanged,
-      signOut
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-
-    // Firebase configuration (your project)
+  <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
       projectId: "lla5785v3-0",
-      storageBucket: "lla5785v3-0.firebasestorage.app",
+      storageBucket: "lla5785v3-0.appspot.com",
       messagingSenderId: "730972554331",
       appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
       measurementId: "G-WZNQ24S4DM"
     };
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+    const log = (msg) => {
+      document.getElementById("log").textContent += msg + "\n";
+      console.log(msg);
+    };
 
-    const output = document.getElementById("output");
-    const startBtn = document.getElementById("start-btn");
-
-    // Sheet details - real IDs and ranges
-    const SHEETS = [
-      { id: "1cc70DNzSvOw1q67VC3-V9q4Hqy-PDXN65jfMEhsy1Ro", range: "members1", collectionName: "members" },
-      { id: "1caBt8yogXcTQweUfb6iQuPly2RY7Gq_3vF_xGLrEAs0", range: "members2", collectionName: "members" },
-      { id: "1tYmQVy6vDjLGcVkTCbmrwtnzY5cnGrwRSJu48LrhTc8", range: "ads1", collectionName: "ad_list" },
-      { id: "1pi-eqrlLVp_52ZtnkRXv8Qk0mOVoV-AxY5upLfXRTlI", range: "ads2", collectionName: "ad_list" }
-    ];
-
-    // Utility function to append to output
-    function log(msg) {
-      output.textContent += msg + "\n";
-      output.scrollTop = output.scrollHeight;
-    }
-
-    // Authenticate the user, allow only admin
-    function authenticate() {
-      return new Promise((resolve, reject) => {
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            if (user.email === ADMIN_EMAIL) {
-              log(`Authenticated as admin: ${user.email}`);
-              resolve(user);
-            } else {
-              log("Access denied: Unauthorized user.");
-              signOut(auth);
-              reject(new Error("Unauthorized user"));
-            }
-          } else {
-            // Not signed in, trigger popup sign-in
-            signInWithPopup(auth, provider)
-              .then((result) => {
-                const user = result.user;
-                if (user.email === ADMIN_EMAIL) {
-                  log(`Authenticated as admin: ${user.email}`);
-                  resolve(user);
-                } else {
-                  log("Access denied: Unauthorized user.");
-                  signOut(auth);
-                  reject(new Error("Unauthorized user"));
-                }
-              })
-              .catch((err) => {
-                log("Authentication failed: " + err.message);
-                reject(err);
-              });
-          }
-        });
-      });
-    }
-
-    // Load Google Sheets API
-    function loadGapi() {
-      return new Promise((resolve) => {
-        if (window.gapi) {
-          window.gapi.load('client', () => {
-            resolve();
-          });
-        } else {
-          log("Error: gapi not loaded.");
-          resolve(); // fail gracefully
-        }
-      });
-    }
-
-    // Initialize gapi client with Sheets API and your API key
-    async function initGapiClient() {
-      await window.gapi.client.init({
-        apiKey: firebaseConfig.apiKey,
-        discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"]
-      });
-      log("Google Sheets API initialized");
-    }
-
-    // Read rows from a Google Sheet range
-    async function readSheet(sheetId, range) {
-      log(`Reading sheet ID: ${sheetId}, range: ${range} ...`);
-      try {
-        const response = await window.gapi.client.sheets.spreadsheets.values.get({
-          spreadsheetId: sheetId,
-          range: range
-        });
-        const rows = response.result.values || [];
-        log(`Read ${rows.length} rows from ${range}`);
-        return rows;
-      } catch (err) {
-        log(`Error reading sheet ${sheetId} range ${range}: ${err.result?.error?.message || err.message}`);
-        throw err;
-      }
-    }
-
-    // Check if a document with a unique key exists in Firestore
-    async function docExists(collectionName, uniqueKey, uniqueValue) {
-      const q = query(collection(db, collectionName), where(uniqueKey, "==", uniqueValue));
-      const snapshot = await getDocs(q);
-      return !snapshot.empty;
-    }
-
-    // Add a document to Firestore
-    async function addDocToCollection(collectionName, data) {
-      await addDoc(collection(db, collectionName), data);
-    }
-
-    // Process one sheet: add new docs, skip existing, log output
-    async function processSheet(sheet) {
-      const { id, range, collectionName } = sheet;
-      const rows = await readSheet(id, range);
-
-      if (rows.length === 0) {
-        log(`No data found in ${range}`);
-        return;
-      }
-
-      // Assuming first row is headers, get keys
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
-
-      for (const row of dataRows) {
-        // Build object from headers
+    const fetchCSV = async (url) => {
+      const res = await fetch(url);
+      const text = await res.text();
+      const [headerLine, ...lines] = text.trim().split("\n");
+      const headers = headerLine.split(",");
+      return lines.map(line => {
+        const values = line.split(",");
         const obj = {};
-        headers.forEach((header, i) => {
-          obj[header] = row[i] || "";
+        headers.forEach((h, i) => obj[h.trim()] = values[i]?.trim());
+        return obj;
+      });
+    };
+
+    const propagateData = async () => {
+      log("Starting propagation...");
+
+      // MEMBERS
+      const membersCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv";
+      const members = await fetchCSV(membersCSV);
+      for (const member of members) {
+        if (!member.Email) continue;
+        await db.collection("members").doc(member.Email).set(member);
+        log(`Member: ${member.Email} written`);
+      }
+
+      // ADS
+      const adsCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv";
+      const ads = await fetchCSV(adsCSV);
+      for (const ad of ads) {
+        const docId = ad.Email ? ad.Email + "_" + (ad.Title || "ad") : undefined;
+        if (!docId) continue;
+        await db.collection("ad_list").doc(docId).set(ad);
+        log(`Ad: ${docId} written`);
+      }
+
+      // TESTIMONIALS
+      const testimonialsCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv";
+      const testimonials = await fetchCSV(testimonialsCSV);
+      for (const testimonial of testimonials) {
+        const email = testimonial.Email;
+        if (!email) continue;
+        await db.collection("members").doc(email).update({
+          testimonial: testimonial.Testimonial,
+          rating: testimonial.Rating,
         });
-
-        // Define unique key per collection for existence check:
-        // You may need to adjust these keys if your sheets differ
-        let uniqueKey = "email"; // default
-        if (collectionName === "ad_list") uniqueKey = "ad_id"; // example ad unique key
-
-        if (!obj[uniqueKey]) {
-          log(`Skipping row with missing unique key (${uniqueKey})`);
-          continue;
-        }
-
-        const exists = await docExists(collectionName, uniqueKey, obj[uniqueKey]);
-        if (exists) {
-          log(`Skipping existing ${collectionName} record with ${uniqueKey} = ${obj[uniqueKey]}`);
-        } else {
-          await addDocToCollection(collectionName, obj);
-          log(`Added new ${collectionName} record with ${uniqueKey} = ${obj[uniqueKey]}`);
-        }
+        log(`Testimonial for ${email} updated`);
       }
-    }
 
-    async function propagateAll() {
-      startBtn.disabled = true;
-      output.textContent = "";
-      try {
-        await authenticate();
-        await loadGapi();
-        await initGapiClient();
+      log("Propagation complete.");
+    };
 
-        for (const sheet of SHEETS) {
-          await processSheet(sheet);
-        }
-
-        log("\nAll sheets processed and committed.");
-      } catch (err) {
-        log("Propagation failed: " + err.message);
-      } finally {
-        startBtn.disabled = false;
+    firebase.auth().onAuthStateChanged(async user => {
+      if (user) {
+        log("Authenticated as admin: " + user.email);
+        document.getElementById("start").addEventListener("click", propagateData);
+      } else {
+        log("Signing in...");
+        const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider).catch(err => {
+          log("Auth error: " + err.message);
+        });
       }
-    }
-
-    startBtn.addEventListener("click", propagateAll);
-
+    });
   </script>
-
-  <script src="https://apis.google.com/js/api.js"></script>
 </body>
 </html>
