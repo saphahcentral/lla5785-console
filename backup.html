@@ -61,14 +61,16 @@
   const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
 
   const firebaseConfig = {
-    apiKey: "AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M",
+    apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
     authDomain: "lla5785v3-0.firebaseapp.com",
     projectId: "lla5785v3-0",
-    storageBucket: "lla5785v3-0.appspot.com",
-    messagingSenderId: "693326104186",
-    appId: "1:693326104186:web:19058ba6f6201092024a5b"
+    storageBucket: "lla5785v3-0.firebasestorage.app",
+    messagingSenderId: "730972554331",
+    appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
+    measurementId: "G-WZNQ24S4DM"
   };
 
+  // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
@@ -81,7 +83,7 @@
     logConsole.scrollTop = logConsole.scrollHeight;
   }
 
-  // Google API auth2 client
+  // Load Google API client and auth2 library
   function handleClientLoad() {
     gapi.load('client:auth2', initClient);
   }
@@ -178,6 +180,7 @@
 
   window.onload = () => {
     handleClientLoad();
+    console.log('Firebase projectId:', firebase.app().options.projectId);
   };
 </script>
 
