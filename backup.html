@@ -1,128 +1,110 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Database Backup</title>
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="https://accounts.google.com/gsi/client"></script>
+  <meta charset="UTF-8" />
+  <title>LLA5785 Console - Backup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #fafafa;
+    }
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      background-color: #007acc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #005fa3;
+    }
+    pre {
+      background: #222;
+      color: #0f0;
+      padding: 15px;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-top: 20px;
+      border-radius: 4px;
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <h1>Backup Firestore Data to Google Drive</h1>
-  <button onclick="handleAuthClick()">Authorize & Backup</button>
-  <pre id="output"></pre>
 
-  <script>
-    const CLIENT_ID = '730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com';
-    const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-    let tokenClient;
-    let accessToken = null;
+<h1>LLA5785 Console - Backup Firestore Collections</h1>
+<button id="backupBtn">Backup Members & Ads</button>
+<pre id="logConsole">Ready.</pre>
 
-    function log(msg) {
-      document.getElementById('output').textContent += msg + '\n';
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M",
+    authDomain: "lla5785.firebaseapp.com",
+    projectId: "lla5785",
+    storageBucket: "lla5785.appspot.com",
+    messagingSenderId: "693326104186",
+    appId: "1:693326104186:web:19058ba6f6201092024a5b"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const backupBtn = document.getElementById("backupBtn");
+  const logConsole = document.getElementById("logConsole");
+
+  function log(text) {
+    logConsole.textContent += "\n" + text;
+    logConsole.scrollTop = logConsole.scrollHeight;
+  }
+
+  async function backupCollection(collectionName) {
+    log(`Backing up collection: ${collectionName}...`);
+    const snapshot = await db.collection(collectionName).get();
+    const data = [];
+    snapshot.forEach(doc => {
+      data.push({ id: doc.id, ...doc.data() });
+    });
+    log(`Fetched ${data.length} records from ${collectionName}.`);
+    return data;
+  }
+
+  function downloadJSON(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  backupBtn.addEventListener("click", async () => {
+    logConsole.textContent = "Starting backup...\n";
+    const dateStr = new Date().toISOString().slice(0,10);
+
+    try {
+      const membersData = await backupCollection("members");
+      downloadJSON(membersData, `LLA5785_Backup_members_${dateStr}.json`);
+
+      const adsData = await backupCollection("ad_list");
+      downloadJSON(adsData, `LLA5785_Backup_ad_list_${dateStr}.json`);
+
+      log("Backup complete. Check your downloads folder.");
+    } catch (err) {
+      log("Backup error: " + err.message);
     }
+  });
+</script>
 
-    // FIRESTORE STUB
-    async function getCollection(name) {
-      // Replace this stub with your real Firestore fetch
-      log(`Fetching ${name} collection...`);
-      return [
-        { id: 'abc123', data: 'Example' },
-        { id: 'xyz456', data: 'Sample' }
-      ];
-    }
-
-    function handleAuthClick() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: async (tokenResponse) => {
-          accessToken = tokenResponse.access_token;
-          log('✅ Authorized with Google Drive.');
-          await startBackup();
-        }
-      });
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    }
-
-    async function startBackup() {
-      try {
-        await gapiLoad('client');
-        gapi.client.setToken({ access_token: accessToken });
-
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        const folderId = await createOrFindFolder(today);
-        log(`📁 Using folder: ${folderId}`);
-
-        const collections = ['members', 'ad_list'];
-        for (const name of collections) {
-          const data = await getCollection(name);
-          await uploadToDrive(folderId, name + '.json', JSON.stringify(data, null, 2));
-        }
-
-        log('✅ Backup complete.');
-      } catch (e) {
-        log('❌ ERROR: ' + e.message);
-      }
-    }
-
-    function gapiLoad(lib) {
-      return new Promise((res) => gapi.load(lib, res));
-    }
-
-    async function createOrFindFolder(folderName) {
-      const q = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`;
-      const response = await gapi.client.request({
-        path: '/drive/v3/files',
-        method: 'GET',
-        params: { q, fields: 'files(id, name)' }
-      });
-
-      if (response.result.files && response.result.files.length > 0) {
-        return response.result.files[0].id;
-      }
-
-      const createResponse = await gapi.client.request({
-        path: '/drive/v3/files',
-        method: 'POST',
-        body: {
-          name: folderName,
-          mimeType: 'application/vnd.google-apps.folder'
-        }
-      });
-      return createResponse.result.id;
-    }
-
-    async function uploadToDrive(folderId, filename, content) {
-      const metadata = {
-        name: filename,
-        parents: [folderId],
-        mimeType: 'application/json'
-      };
-
-      const boundary = '-------314159265358979323846';
-      const delimiter = `\r\n--${boundary}\r\n`;
-      const closeDelim = `\r\n--${boundary}--`;
-
-      const multipartRequestBody =
-        delimiter +
-        'Content-Type: application/json\r\n\r\n' +
-        JSON.stringify(metadata) +
-        delimiter +
-        'Content-Type: application/json\r\n\r\n' +
-        content +
-        closeDelim;
-
-      const response = await gapi.client.request({
-        path: '/upload/drive/v3/files',
-        method: 'POST',
-        params: { uploadType: 'multipart' },
-        headers: {
-          'Content-Type': 'multipart/related; boundary=' + boundary
-        },
-        body: multipartRequestBody
-      });
-
-      log(`📄 Uploaded ${filename} (ID: ${response.result.id})`);
-    }
-  </script>
 </body>
 </html>

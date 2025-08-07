@@ -1,150 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>LLA5785 Console: Propagate Databases</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LLA5785-CONSOLE | Ads</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 0;
       padding: 20px;
-      background: #f0f0f0;
     }
-    h2 {
-      margin-top: 0;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #999;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #eee;
+    }
+    .preview-frame {
+      width: 100%;
+      height: 300px;
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+    .actions {
+      margin-top: 10px;
     }
     button {
-      padding: 10px 16px;
-      font-size: 16px;
-      background-color: #2c3e50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #1a242f;
-    }
-    pre {
-      margin-top: 20px;
-      background-color: #fff;
-      padding: 15px;
-      border: 1px solid #ccc;
-      height: 75vh;
-      overflow-y: auto;
-      white-space: pre-wrap;
+      padding: 5px 10px;
+      margin-right: 5px;
     }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+  <h1>Ad Manager (LLA5785-CONSOLE)</h1>
+  <table id="adsTable">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Type</th>
+        <th>Image URL</th>
+        <th>Target URL</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<h2>Propagate Google Sheets into Firestore</h2>
-<button onclick="startPropagation()">PROPAGATE DATABASES</button>
-<pre id="logOutput">Ready.</pre>
+  <h3>Add New Ad</h3>
+  <input type="text" id="newTitle" placeholder="Title">
+  <input type="text" id="newType" placeholder="Type (banner/text/iframe)">
+  <input type="text" id="newImage" placeholder="Image URL (or text)">
+  <input type="text" id="newURL" placeholder="Target URL">
+  <button onclick="addAd()">Add Ad</button>
 
-<script>
-  const MEMBER_SHEETS = [
-    { id: '1MLgy0S3ofq0cUUrEXR3cKPPOpTqFHY3mMZlViUdFe5g', range: 'Form Responses 1!A2:D' },
-    { id: '1rUoDym2G4UAwMG-qPaX_YDTUXck-WZrCRS1RliwAar8', range: 'Sheet1!A2:D' },
-    { id: '1HLoQ3L0Qg1jOCqMvOZ1vv0uof8M3RKy0_gXQU1IdT5U', range: 'Sheet1!A2:D' }
-  ];
+  <h3>Live Preview</h3>
+  <iframe id="adPreview" class="preview-frame"></iframe>
 
-  const ADS_SHEETS = [
-    { id: '1JEBa2kZKnblqTJ1vCl1qgYIXZoTuXB8H5taOmF7kk9Y', range: 'Sheet1!A2:E' },
-    { id: '1RbgkITxKXp6zqE5X9qRtLtLJxfI0qsvG1uQZkYjIdNQ', range: 'ContactList!A2:E' }
-  ];
+  <script>
+      const firebaseConfig = {
+      apiKey: "AIzaSyDZ-cKKMPsIChAZDiHwQv4LrfnmOZQJKls",
+      authDomain: "lla5785.firebaseapp.com",
+      projectId: "lla5785",
+      storageBucket: "lla5785.appspot.com",
+      messagingSenderId: "50911987407",
+      appId: "1:50911987407:web:92c6d742b4dc355a42604a"
+    };
 
-  const log = document.getElementById('logOutput');
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const adListRef = db.collection("ad_list");
 
-  function logLine(text) {
-    log.textContent += `\n${text}`;
-  }
+    const tableBody = document.querySelector("#adsTable tbody");
+    const adPreview = document.getElementById("adPreview");
 
-  async function startPropagation() {
-    log.textContent = 'Starting propagation...\n';
+    function loadAds() {
+      tableBody.innerHTML = "";
+      adListRef.get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const ad = doc.data();
+          const row = document.createElement("tr");
 
-    await loadFirebase();
-    await loadGoogleSheetsAPI();
-
-    for (const sheet of MEMBER_SHEETS) {
-      await processSheet(sheet, 'members');
-    }
-
-    for (const sheet of ADS_SHEETS) {
-      await processSheet(sheet, 'ad_list');
-    }
-
-    logLine('\n✅ Propagation completed.');
-  }
-
-  async function processSheet(sheet, collection) {
-    try {
-      const data = await fetchSheetData(sheet.id, sheet.range);
-      if (!data || data.length === 0) {
-        logLine(`⚠️ No data found in ${sheet.range}`);
-        return;
-      }
-
-      logLine(`🔍 Scanning ${collection.toUpperCase()} from "${sheet.range}" (${data.length} rows)`);
-
-      for (const row of data) {
-        const email = (collection === 'members') ? row[2] : row[0];
-        if (!email) continue;
-
-        const docRef = firebase.firestore().collection(collection).doc(email);
-        const docSnap = await docRef.get();
-
-        if (docSnap.exists) {
-          logLine(`⏩ Skipped existing: ${email}`);
-        } else {
-          const record = (collection === 'members')
-            ? { id: row[0], name: row[1], email: row[2], role: row[3] }
-            : { email: row[0], category: row[1], title: row[2], description: row[3], active: row[4] };
-
-          await docRef.set(record);
-          logLine(`✅ Added to ${collection}: ${email}`);
-        }
-      }
-    } catch (err) {
-      logLine(`❌ Error in ${collection} (${sheet.range}): ${err.message}`);
-    }
-  }
-
-  function fetchSheetData(sheetId, range) {
-    return gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: range
-    }).then(res => res.result.values || []);
-  }
-
-  async function loadGoogleSheetsAPI() {
-    return new Promise((resolve) => {
-      gapi.load('client', async () => {
-        await gapi.client.init({
-          apiKey: 'YOUR_GOOGLE_API_KEY',
-          discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+          row.innerHTML = `
+            <td contenteditable onblur="updateAd('${doc.id}', 'title', this.innerText)">${ad.title || ''}</td>
+            <td contenteditable onblur="updateAd('${doc.id}', 'type', this.innerText)">${ad.type || ''}</td>
+            <td contenteditable onblur="updateAd('${doc.id}', 'image', this.innerText)">${ad.image || ''}</td>
+            <td contenteditable onblur="updateAd('${doc.id}', 'url', this.innerText)">${ad.url || ''}</td>
+            <td>
+              <button onclick="previewAd('${ad.type}', \`${ad.image}\`, '${ad.url}')">Preview</button>
+              <button onclick="deleteAd('${doc.id}')">Delete</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
         });
-        resolve();
-      });
-    });
-  }
-
-  async function loadFirebase() {
-    if (!firebase.apps.length) {
-      firebase.initializeApp({
-        apiKey: 'YOUR_FIREBASE_API_KEY',
-        authDomain: 'YOUR_PROJECT.firebaseapp.com',
-        projectId: 'YOUR_PROJECT_ID'
       });
     }
-  }
-</script>
 
-<!-- Firebase + GAPI libraries -->
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-<script src="https://apis.google.com/js/api.js"></script>
+    function updateAd(id, field, value) {
+      adListRef.doc(id).update({ [field]: value });
+    }
 
+    function addAd() {
+      const newAd = {
+        title: document.getElementById("newTitle").value,
+        type: document.getElementById("newType").value,
+        image: document.getElementById("newImage").value,
+        url: document.getElementById("newURL").value,
+        active: true
+      };
+      adListRef.add(newAd).then(loadAds);
+    }
+
+    function deleteAd(id) {
+      if (confirm("Delete this ad?")) {
+        adListRef.doc(id).delete().then(loadAds);
+      }
+    }
+
+    function previewAd(type, content, link) {
+      if (type === "banner") {
+        adPreview.srcdoc = `<a href="${link}" target="_blank"><img src="${content}" style="max-width:100%;"></a>`;
+      } else if (type === "text") {
+        adPreview.srcdoc = `<a href="${link}" target="_blank" style="color:blue; text-decoration:underline;">${content}</a>`;
+      } else if (type === "iframe") {
+        adPreview.src = link;
+      } else {
+        adPreview.srcdoc = "Unsupported type";
+      }
+    }
+
+    loadAds();
+  </script>
 </body>
 </html>

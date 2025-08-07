@@ -1,75 +1,88 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>MEMBERS CONSOLE - LLA5785</title>
-  <link rel="stylesheet" href="console.css">
+  <meta charset="UTF-8">
+  <title>LLA5785 Console - Members</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    #searchBox {
-      margin-bottom: 10px;
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #eee; }
+    button { padding: 5px 10px; }
+    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; }
   </style>
+  <!-- Firebase App (the core Firebase SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <h1>Member Database Console</h1>
-
-  <input type="text" id="searchBox" placeholder="Search by email..." onkeyup="searchTable()">
-
+  <h1>LLA5785 Console - Members</h1>
   <table id="membersTable">
     <thead>
       <tr>
         <th>Email</th>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Join Date</th>
+        <th>Plan</th>
+        <th>Status</th>
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody>
-      <!-- Member rows will be inserted here -->
-    </tbody>
+    <tbody></tbody>
   </table>
 
-  <button onclick="addMember()">Add New Member</button>
+  <pre id="console">Console log:</pre>
 
   <script>
-    function addMember() {
-      const table = document.getElementById('membersTable').getElementsByTagName('tbody')[0];
-      const row = table.insertRow();
+    const firebaseConfig = {
+      apiKey: "AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M",
+      authDomain: "lla5785.firebaseapp.com",
+      projectId: "lla5785",
+      storageBucket: "lla5785.appspot.com",
+      messagingSenderId: "693326104186",
+      appId: "1:693326104186:web:19058ba6f6201092024a5b"
+    };
 
-      for (let i = 0; i < 4; i++) {
-        const cell = row.insertCell();
-        const input = document.createElement('input');
-        input.type = 'text';
-        cell.appendChild(input);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const log = (msg) => {
+      document.getElementById("console").textContent += "\n" + msg;
+    };
+
+    const loadMembers = async () => {
+      const table = document.querySelector("#membersTable tbody");
+      table.innerHTML = "";
+      try {
+        const snapshot = await db.collection("members").get();
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const row = table.insertRow();
+          row.insertCell().textContent = data.email || "(no email)";
+          row.insertCell().textContent = data.plan || "-";
+          row.insertCell().textContent = data.status || "-";
+
+          const actionsCell = row.insertCell();
+          const deleteBtn = document.createElement("button");
+          deleteBtn.textContent = "Delete";
+          deleteBtn.onclick = () => {
+            if (confirm(`Delete ${data.email}?`)) {
+              db.collection("members").doc(doc.id).delete()
+                .then(() => {
+                  log(`Deleted: ${data.email}`);
+                  loadMembers();
+                })
+                .catch(err => log("Delete error: " + err));
+            }
+          };
+          actionsCell.appendChild(deleteBtn);
+        });
+        log("Members loaded.");
+      } catch (e) {
+        log("Error loading members: " + e.message);
       }
+    };
 
-      const actionCell = row.insertCell();
-      const delBtn = document.createElement('button');
-      delBtn.textContent = 'Delete';
-      delBtn.onclick = function () {
-        if (confirm('Delete this member?')) row.remove();
-      };
-      actionCell.appendChild(delBtn);
-
-      sortTable();
-    }
-
-    function sortTable() {
-      const table = document.getElementById('membersTable');
-      const tbody = table.tBodies[0];
-      const rows = Array.from(tbody.rows);
-      rows.sort((a, b) => a.cells[0].querySelector('input').value.localeCompare(b.cells[0].querySelector('input').value));
-      rows.forEach(row => tbody.appendChild(row));
-    }
-
-    function searchTable() {
-      const input = document.getElementById('searchBox').value.toLowerCase();
-      const rows = document.getElementById('membersTable').getElementsByTagName('tbody')[0].rows;
-      for (let row of rows) {
-        const email = row.cells[0].querySelector('input').value.toLowerCase();
-        row.style.display = email.includes(input) ? '' : 'none';
-      }
-    }
+    loadMembers();
   </script>
 </body>
 </html>
