@@ -163,12 +163,12 @@
       const dateStr = new Date().toISOString().slice(0, 10);
 
       const membersData = await fetchCollectionData('members');
-      await uploadFileToDrive(`LLA5785_Backup_members_${dateStr}.json`, JSON.stringify(membersData, null, 2));
-      log(`✅ Uploaded members backup as LLA5785_Backup_members_${dateStr}.json`);
+      await uploadFileToDrive(`LLA5785V3-0_Backup_members_${dateStr}.json`, JSON.stringify(membersData, null, 2));
+      log(`✅ Uploaded members backup as LLA5785V3-0_Backup_members_${dateStr}.json`);
 
       const adsData = await fetchCollectionData('ad_list');
-      await uploadFileToDrive(`LLA5785_Backup_ad_list_${dateStr}.json`, JSON.stringify(adsData, null, 2));
-      log(`✅ Uploaded ad_list backup as LLA5785_Backup_ad_list_${dateStr}.json`);
+      await uploadFileToDrive(`LLA5785V3-0_Backup_ad_list_${dateStr}.json`, JSON.stringify(adsData, null, 2));
+      log(`✅ Uploaded ad_list backup as LLA5785V3-0_Backup_ad_list_${dateStr}.json`);
 
       log('🎉 Backup completed successfully!');
     } catch (e) {
