@@ -7,56 +7,74 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
+      background-color: #f5f5f5;
       margin: 0;
       padding: 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      min-height: 100vh;
     }
     h1 {
       color: #003366;
-      margin-bottom: 0;
+      margin-bottom: 10px;
     }
-    button {
-      padding: 10px 24px;
+    #startBtn {
+      padding: 10px 20px;
       font-size: 16px;
-      margin: 15px 0 10px;
+      margin: 15px 0;
       border: none;
       background-color: #4285f4;
       color: white;
       border-radius: 5px;
       cursor: pointer;
-      user-select: none;
     }
-    button:hover {
-      background-color: #357ae8;
+    #startBtn:disabled {
+      background-color: #a0c3ff;
+      cursor: not-allowed;
     }
-    pre {
-      background: white;
+    pre#log {
+      background: #fff;
       border: 1px solid #ccc;
       padding: 10px;
       width: 100%;
       max-width: 960px;
-      max-height: 180px;
+      max-height: 320px;
       overflow-y: auto;
       white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.3;
+      margin-top: 10px;
       box-sizing: border-box;
-      font-size: 13px;
-      line-height: 1.3em;
+    }
+    #authStatus {
+      font-weight: bold;
+      color: #006600;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
   <h1>LLA5785 Propagation Console</h1>
-  <button id="startBtn">Start Propagation</button>
+  <div id="authStatus">Checking authentication...</div>
+  <button id="startBtn" disabled>Start Propagation</button>
   <pre id="log"></pre>
 
   <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 
+    // Firebase config - keep in sync with index.html
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
@@ -67,13 +85,17 @@
       measurementId: "G-WZNQ24S4DM"
     };
 
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const logEl = document.getElementById('log');
-    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
-    // CSV data sources for propagation
+    const startBtn = document.getElementById("startBtn");
+    const logEl = document.getElementById("log");
+    const authStatusEl = document.getElementById("authStatus");
+
+    // CSV Data sources as provided
     const dataSources = [
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv", type: "members", name: "Members Sheet 1" },
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv", type: "members", name: "Members Sheet 2" },
@@ -82,131 +104,117 @@
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv", type: "testimonials", name: "Testimonials" }
     ];
 
-    function log(msg) {
-      console.log(msg);
-      logEl.textContent += msg + "\n";
-      // Auto-scroll down
-      logEl.scrollTop = logEl.scrollHeight;
+    // Log helper: append line, keep max 320px height scroll area, bottom to top reversed visually, but newest at bottom.
+    function log(message) {
+      logEl.textContent += message + "\n";
+      logEl.scrollTop = logEl.scrollHeight; // autoscroll to bottom
     }
 
-    // Parse CSV string into array of objects (handles quoted commas)
     async function fetchCSV(url) {
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`Failed to fetch CSV: ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(`Failed to fetch CSV from ${url}: ${res.statusText}`);
       const text = await res.text();
 
-      // Split into lines and parse rows safely
-      const lines = text.trim().split(/\r?\n/);
-      const rows = lines.map(line => {
-        // Simple CSV parser handling quotes
-        const cells = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const c = line[i];
-          if (c === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-              current += '"'; i++;
-            } else {
-              inQuotes = !inQuotes;
-            }
-          } else if (c === ',' && !inQuotes) {
-            cells.push(current);
-            current = '';
-          } else {
-            current += c;
-          }
-        }
-        cells.push(current);
-        return cells;
-      });
-
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
-
-      return { headers, dataRows };
+      // Parse CSV - split lines, then split by commas outside quotes
+      return text.trim().split("\n").map(line =>
+        line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, ''))
+      );
     }
 
     async function propagate() {
-      log("");
-      log("Starting propagation...");
+      startBtn.disabled = true;
+      log("\nStarting propagation...\n");
       let totalSaved = 0, totalSkipped = 0;
 
       for (const { url, type, name } of dataSources) {
-        log("");
-        log(`=== Fetching ${name} ===`);
+        log(`Fetching ${name}...`);
+
         try {
-          const { headers, dataRows } = await fetchCSV(url);
-
+          const rows = await fetchCSV(url);
+          const headers = rows[0];
           let saved = 0, skipped = 0;
-          for (let i = 0; i < dataRows.length; i++) {
-            const row = dataRows[i];
+
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
             const data = {};
-            for (let h = 0; h < headers.length; h++) {
-              const key = headers[h].trim();
-              let val = row[h] ?? "";
-              if (val === undefined || val === null) val = "";
-              data[key] = val;
-            }
+            headers.forEach((h, idx) => {
+              data[h] = row[idx] ?? "";
+            });
 
-            // Document ID preference order: email, Timestamp, else fallback
-            let id = data.email || data.Timestamp || `${type}_${i}`;
+            // Determine ID for Firestore doc
+            // Prefer email if present, else Timestamp, else fallback
+            let id = data.email || data.Email || data.Timestamp || `record_${i}`;
 
-            // Choose Firestore collection path
-            let collectionPath = type === "ads" ? "ad_list" : "members";
+            // For testimonials, update member doc by email, else separate collection
             if (type === "testimonials") {
-              // For testimonials, id is email and we merge testimonial field only
-              id = data.email || data.Timestamp || `testimonial_${i}`;
+              if (!id) {
+                log(`❌ Testimonials record #${i} missing email/timestamp ID`);
+                continue;
+              }
+              try {
+                await setDoc(doc(db, "members", id), { testimonial: data.testimonial || data.Testimonial || "" }, { merge: true });
+                log(`${id} – Testimonial updated`);
+                saved++;
+              } catch(e) {
+                log(`${id} – ❌ ${e.message}`);
+              }
+              continue;
             }
 
-            const docRef = doc(db, collectionPath, id);
+            // Collection name depends on type
+            let collectionName = type === "ads" ? "ad_list" : "members";
 
             try {
-              if (type === "testimonials") {
-                if (!data.testimonial) {
-                  log(`Skipped testimonial for ${id} - no testimonial text`);
-                  skipped++;
-                  continue;
-                }
-                // Update testimonial field only (merge)
-                await setDoc(doc(db, "members", id), { testimonial: data.testimonial }, { merge: true });
-                log(`Testimonial updated for ${id}`);
-                saved++;
+              const docRef = doc(db, collectionName, id);
+              const existing = await getDoc(docRef);
+              if (existing.exists()) {
+                log(`${id} – Skipped (exists)`);
+                skipped++;
               } else {
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                  log(`Skipped existing record ${id}`);
-                  skipped++;
-                } else {
-                  await setDoc(docRef, data);
-                  log(`Saved new record ${id}`);
-                  saved++;
+                // Clean up empty string fields - Firestore doesn't accept fields with empty key names
+                const cleanData = {};
+                for (const [key, val] of Object.entries(data)) {
+                  if (key.trim() !== "") {
+                    cleanData[key] = val;
+                  }
                 }
+                await setDoc(docRef, cleanData);
+                log(`${id} – Saved`);
+                saved++;
               }
             } catch (e) {
-              log(`❌ Error saving ${id}: ${e.message}`);
+              log(`${id} – ❌ ${e.message}`);
             }
           }
-          log(`=== Done with ${name}: Saved ${saved}, Skipped ${skipped} ===`);
+
+          log(`✅ ${name}: ${saved} saved, ${skipped} skipped.\n`);
           totalSaved += saved;
           totalSkipped += skipped;
-        } catch (e) {
-          log(`❌ Failed to fetch/process ${name}: ${e.message}`);
+
+        } catch (err) {
+          log(`❌ Failed ${name}: ${err.message}\n`);
         }
       }
 
-      log("");
-      log(`Propagation complete. Total saved: ${totalSaved}, total skipped: ${totalSkipped}`);
+      log(`Propagation complete. Total saved: ${totalSaved}, skipped: ${totalSkipped}`);
+      startBtn.disabled = false;
     }
 
-    document.getElementById("startBtn").addEventListener("click", () => {
-      onAuthStateChanged(auth, user => {
-        if (user && user.email === ADMIN_EMAIL) {
-          propagate();
-        } else {
-          alert("Unauthorized user - propagation cancelled.");
-        }
-      });
+    // Check Firebase Auth state before enabling propagation
+    onAuthStateChanged(auth, (user) => {
+      if (user && user.email === ADMIN_EMAIL) {
+        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+        startBtn.disabled = false;
+      } else {
+        authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+        startBtn.disabled = true;
+        // Optionally, redirect to login
+        // window.location.href = "index.html";
+      }
+    });
+
+    startBtn.addEventListener("click", () => {
+      propagate();
     });
   </script>
 </body>
