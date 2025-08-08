@@ -76,7 +76,6 @@
 
     const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
-    // Firebase config - keep in sync with index.html
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
@@ -95,7 +94,6 @@
     const logEl = document.getElementById("log");
     const authStatusEl = document.getElementById("authStatus");
 
-    // CSV Data sources as provided
     const dataSources = [
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vT5PjdqsQRoFjWhKHpisSFvaeVqkFBn6AO37n_EeD9ncva0QF3MO0xFyuMqAtr0DyvTbzzNN-7YrdG_/pub?output=csv", type: "members", name: "Members Sheet 1" },
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRSn8y-d5UpR717rDlx6f0t3YO7iadHLCCDgACgU8xKqc6RLdlC2qWXFtqrqYf5Q3elboqgExIIGfo-/pub?output=csv", type: "members", name: "Members Sheet 2" },
@@ -104,7 +102,6 @@
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv", type: "testimonials", name: "Testimonials" }
     ];
 
-    // Log helper: append line, autoscroll to bottom
     function log(message) {
       logEl.textContent += message + "\n";
       logEl.scrollTop = logEl.scrollHeight;
@@ -114,8 +111,6 @@
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Failed to fetch CSV from ${url}: ${res.statusText}`);
       const text = await res.text();
-
-      // Parse CSV - split lines, then split by commas outside quotes
       return text.trim().split("\n").map(line =>
         line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(cell => cell.replace(/^"|"$/g, ''))
       );
@@ -141,7 +136,6 @@
               data[h] = row[idx] ?? "";
             });
 
-            // Determine ID for Firestore doc
             let id = data.email || data.Email || data.Timestamp || `record_${i}`;
 
             if (!id) {
@@ -149,13 +143,15 @@
               continue;
             }
 
+            const emailForLog = data.email || data.Email || "(no email)";
+
             if (type === "testimonials") {
               try {
                 await setDoc(doc(db, "members", id), { testimonial: data.testimonial || data.Testimonial || "" }, { merge: true });
-                log(`${id} – Testimonial updated`);
+                log(`${id} (${emailForLog}) – Testimonial updated`);
                 saved++;
               } catch(e) {
-                log(`${id} – ❌ ${e.message}`);
+                log(`${id} (${emailForLog}) – ❌ ${e.message}`);
               }
               continue;
             }
@@ -167,10 +163,9 @@
               const existing = await getDoc(docRef);
 
               if (existing.exists()) {
-                log(`${id} – Skipped (exists)`);
+                log(`${id} (${emailForLog}) – Skipped (exists)`);
                 skipped++;
               } else {
-                // Clean up empty string fields
                 const cleanData = {};
                 for (const [key, val] of Object.entries(data)) {
                   if (key.trim() !== "") {
@@ -178,11 +173,11 @@
                   }
                 }
                 await setDoc(docRef, cleanData);
-                log(`${id} – Saved`);
+                log(`${id} (${emailForLog}) – Saved`);
                 saved++;
               }
             } catch (e) {
-              log(`${id} – ❌ ${e.message}`);
+              log(`${id} (${emailForLog}) – ❌ ${e.message}`);
             }
           }
 
