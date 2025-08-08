@@ -74,6 +74,8 @@
       signOut
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
     // Firebase config - keep in sync with index.html
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
@@ -84,8 +86,6 @@
       appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
       measurementId: "G-WZNQ24S4DM"
     };
-
-    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -104,10 +104,10 @@
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv", type: "testimonials", name: "Testimonials" }
     ];
 
-    // Log helper: append line, keep max 320px height scroll area, bottom to top reversed visually, but newest at bottom.
+    // Log helper: append line, autoscroll to bottom
     function log(message) {
       logEl.textContent += message + "\n";
-      logEl.scrollTop = logEl.scrollHeight; // autoscroll to bottom
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
     async function fetchCSV(url) {
@@ -142,15 +142,14 @@
             });
 
             // Determine ID for Firestore doc
-            // Prefer email if present, else Timestamp, else fallback
             let id = data.email || data.Email || data.Timestamp || `record_${i}`;
 
-            // For testimonials, update member doc by email, else separate collection
+            if (!id) {
+              log(`❌ Skipping record #${i} due to missing ID`);
+              continue;
+            }
+
             if (type === "testimonials") {
-              if (!id) {
-                log(`❌ Testimonials record #${i} missing email/timestamp ID`);
-                continue;
-              }
               try {
                 await setDoc(doc(db, "members", id), { testimonial: data.testimonial || data.Testimonial || "" }, { merge: true });
                 log(`${id} – Testimonial updated`);
@@ -161,17 +160,17 @@
               continue;
             }
 
-            // Collection name depends on type
-            let collectionName = type === "ads" ? "ad_list" : "members";
+            let collectionName = (type === "ads") ? "ad_list" : "members";
 
             try {
               const docRef = doc(db, collectionName, id);
               const existing = await getDoc(docRef);
+
               if (existing.exists()) {
                 log(`${id} – Skipped (exists)`);
                 skipped++;
               } else {
-                // Clean up empty string fields - Firestore doesn't accept fields with empty key names
+                // Clean up empty string fields
                 const cleanData = {};
                 for (const [key, val] of Object.entries(data)) {
                   if (key.trim() !== "") {
@@ -200,17 +199,20 @@
       startBtn.disabled = false;
     }
 
-    // Check Firebase Auth state before enabling propagation
     onAuthStateChanged(auth, (user) => {
-      if (user && user.email === ADMIN_EMAIL) {
-        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
-        startBtn.disabled = false;
-      } else {
-        authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
-        startBtn.disabled = true;
-        // Optionally, redirect to login
-        // window.location.href = "index.html";
+      console.log("Auth state changed:", user);
+      if (user) {
+        const emailLower = (user.email || "").toLowerCase();
+        const adminLower = ADMIN_EMAIL.toLowerCase();
+        console.log("User email:", user.email);
+        if (emailLower === adminLower) {
+          authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+          startBtn.disabled = false;
+          return;
+        }
       }
+      authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+      startBtn.disabled = true;
     });
 
     startBtn.addEventListener("click", () => {
