@@ -10,7 +10,7 @@
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background-color: #eee; }
     button { padding: 5px 10px; }
-    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; }
+    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; height: 150px; overflow-y: auto; }
   </style>
   <!-- Firebase App (the core Firebase SDK) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -45,18 +45,31 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    const logEl = document.getElementById("console");
     const log = (msg) => {
-      document.getElementById("console").textContent += "\n" + msg;
+      logEl.textContent += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
     };
 
     const loadMembers = async () => {
-      const table = document.querySelector("#membersTable tbody");
-      table.innerHTML = "";
+      const tableBody = document.querySelector("#membersTable tbody");
+      tableBody.innerHTML = "";
       try {
         const snapshot = await db.collection("members").get();
+
+        if (snapshot.empty) {
+          log("⚠️ No members found in collection.");
+          return;
+        }
+
+        log(`🔍 Found ${snapshot.size} member(s). Loading...`);
+
         snapshot.forEach(doc => {
+          log(`Doc ID: ${doc.id}`);
+
           const data = doc.data();
-          const row = table.insertRow();
+          const row = tableBody.insertRow();
+
           row.insertCell().textContent = data.email || "(no email)";
           row.insertCell().textContent = data.plan || "-";
           row.insertCell().textContent = data.status || "-";
@@ -65,10 +78,10 @@
           const deleteBtn = document.createElement("button");
           deleteBtn.textContent = "Delete";
           deleteBtn.onclick = () => {
-            if (confirm(`Delete ${data.email}?`)) {
+            if (confirm(`Delete ${data.email || "(no email)"}?`)) {
               db.collection("members").doc(doc.id).delete()
                 .then(() => {
-                  log(`Deleted: ${data.email}`);
+                  log(`Deleted: ${data.email || "(no email)"}`);
                   loadMembers();
                 })
                 .catch(err => log("Delete error: " + err));
@@ -76,9 +89,10 @@
           };
           actionsCell.appendChild(deleteBtn);
         });
-        log("Members loaded.");
+
+        log("✅ Members loaded.");
       } catch (e) {
-        log("Error loading members: " + e.message);
+        log("❌ Error loading members: " + e.message);
       }
     };
 
