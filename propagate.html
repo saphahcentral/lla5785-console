@@ -212,17 +212,17 @@
                 const updatePayload = {};
 
                 // Update missing email
-                if ((!existingData.email || existingData.email === "") && (data.email || data.Email)) {
+                if ((!existingData.email || existingData.email.trim() === "") && (data.email || data.Email)) {
                   updatePayload.email = data.email || data.Email;
                   needsUpdate = true;
                 }
                 // Update missing memberID
-                if ((!existingData.memberID || existingData.memberID === "") && (data.memberID || data.MemberID)) {
+                if ((!existingData.memberID || existingData.memberID.trim() === "") && (data.memberID || data.MemberID)) {
                   updatePayload.memberID = data.memberID || data.MemberID;
                   needsUpdate = true;
                 }
                 // Ads: update missing memberEmail
-                if (type === "ads" && (!existingData.memberEmail || existingData.memberEmail === "") && data.memberEmail) {
+                if (type === "ads" && (!existingData.memberEmail || existingData.memberEmail.trim() === "") && data.memberEmail) {
                   updatePayload.memberEmail = data.memberEmail;
                   needsUpdate = true;
                 }
@@ -232,13 +232,12 @@
                   log(`${id} (${emailForLog}) – Updated missing fields`, "success");
                   updated++;
                 } else {
-                  // Only skip if ALL required fields are present
+                  // Double-check if all required fields exist and non-empty
                   const emailExists = existingData.email && existingData.email.trim() !== "";
                   const memberIDExists = existingData.memberID && existingData.memberID.trim() !== "";
                   const memberEmailExists = existingData.memberEmail && existingData.memberEmail.trim() !== "";
 
                   let canSkip = false;
-
                   if (type === "members") {
                     canSkip = emailExists && memberIDExists;
                   } else if (type === "ads") {
@@ -251,9 +250,25 @@
                     log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
                     skipped++;
                   } else {
-                    // Missing required fields - force update (even if updatePayload empty)
-                    log(`${id} (${emailForLog}) – Warning: Existing record missing required fields, forcing update`, "warning");
+                    // Missing required fields but updatePayload empty,
+                    // so fill updatePayload with missing fields from CSV data to force update:
+                    if (!emailExists && (data.email || data.Email)) {
+                      updatePayload.email = data.email || data.Email;
+                    }
+                    if (!memberIDExists && (data.memberID || data.MemberID)) {
+                      updatePayload.memberID = data.memberID || data.MemberID;
+                    }
+                    if (type === "ads" && !memberEmailExists && data.memberEmail) {
+                      updatePayload.memberEmail = data.memberEmail;
+                    }
+
+                    if (Object.keys(updatePayload).length === 0) {
+                      // If still empty, just force a dummy update to trigger Firestore update
+                      updatePayload.forceUpdate = new Date().toISOString();
+                    }
+
                     await updateDoc(docRef, updatePayload);
+                    log(`${id} (${emailForLog}) – Warning: Existing record missing required fields, forced update`, "warning");
                     updated++;
                   }
                 }
