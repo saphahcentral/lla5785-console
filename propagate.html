@@ -115,7 +115,6 @@
       if(type === 'warning') message = `⚠️ ${message}`;
       else if(type === 'error') message = `❌ ${message}`;
       else if(type === 'success') message = `✅ ${message}`;
-
       logEl.textContent += message + "\n";
       logEl.scrollTop = logEl.scrollHeight;
     }
@@ -167,7 +166,6 @@
             const emailForLog = data.email || data.Email || "(no email)";
             const userIdForLog = data.memberID || data.MemberID || "(no userID)";
 
-            // Warn if email or userID missing but proceed
             if (!emailForLog || emailForLog === "(no email)") {
               log(`${id} – Warning: Email is empty or missing`, "warning");
             }
@@ -191,87 +189,48 @@
             try {
               const docRef = doc(db, collectionName, id);
               const existing = await getDoc(docRef);
-
-              // Ads: fetch memberEmail if missing
-              if (type === "ads" && (!data.memberEmail && (data.memberID || data.MemberID))) {
-                const memId = data.memberID || data.MemberID;
-                if (memId) {
-                  const memberSnap = await getDoc(doc(db, "members", memId));
-                  if (memberSnap.exists()) {
-                    const memEmail = memberSnap.data().email;
-                    if (memEmail) {
-                      data.memberEmail = memEmail;
-                    }
-                  }
-                }
-              }
+              const updatePayload = {};
 
               if (existing.exists()) {
                 const existingData = existing.data();
-                let needsUpdate = false;
-                const updatePayload = {};
 
-                // Update missing email
+                // 🔍 PRE-FILL from members collection if missing
+                const memId = existingData.memberID || data.memberID || data.MemberID;
+                if (memId && (type !== "members")) {
+                  const memberSnap = await getDoc(doc(db, "members", memId));
+                  if (memberSnap.exists()) {
+                    const memberData = memberSnap.data();
+                    if ((!existingData.email || existingData.email.trim() === "") && memberData.email) {
+                      updatePayload.email = memberData.email;
+                      log(`PRE: ${id} - Filled email from members: ${memberData.email}`, "success");
+                    }
+                    if ((!existingData.memberID || existingData.memberID.trim() === "") && memberData.memberID) {
+                      updatePayload.memberID = memberData.memberID;
+                      log(`PRE: ${id} - Filled memberID from members: ${memberData.memberID}`, "success");
+                    }
+                  }
+                }
+
+                // Normal update check
                 if ((!existingData.email || existingData.email.trim() === "") && (data.email || data.Email)) {
                   updatePayload.email = data.email || data.Email;
-                  needsUpdate = true;
                 }
-                // Update missing memberID
                 if ((!existingData.memberID || existingData.memberID.trim() === "") && (data.memberID || data.MemberID)) {
                   updatePayload.memberID = data.memberID || data.MemberID;
-                  needsUpdate = true;
                 }
-                // Ads: update missing memberEmail
                 if (type === "ads" && (!existingData.memberEmail || existingData.memberEmail.trim() === "") && data.memberEmail) {
                   updatePayload.memberEmail = data.memberEmail;
-                  needsUpdate = true;
                 }
 
-                if (needsUpdate) {
+                if (Object.keys(updatePayload).length > 0) {
                   await updateDoc(docRef, updatePayload);
                   log(`${id} (${emailForLog}) – Updated missing fields`, "success");
                   updated++;
                 } else {
-                  // Double-check if all required fields exist and non-empty
-                  const emailExists = existingData.email && existingData.email.trim() !== "";
-                  const memberIDExists = existingData.memberID && existingData.memberID.trim() !== "";
-                  const memberEmailExists = existingData.memberEmail && existingData.memberEmail.trim() !== "";
-
-                  let canSkip = false;
-                  if (type === "members") {
-                    canSkip = emailExists && memberIDExists;
-                  } else if (type === "ads") {
-                    canSkip = emailExists && memberIDExists && memberEmailExists;
-                  } else if (type === "testimonials") {
-                    canSkip = true;
-                  }
-
-                  if (canSkip) {
-                    log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
-                    skipped++;
-                  } else {
-                    // Missing required fields but updatePayload empty,
-                    // so fill updatePayload with missing fields from CSV data to force update:
-                    if (!emailExists && (data.email || data.Email)) {
-                      updatePayload.email = data.email || data.Email;
-                    }
-                    if (!memberIDExists && (data.memberID || data.MemberID)) {
-                      updatePayload.memberID = data.memberID || data.MemberID;
-                    }
-                    if (type === "ads" && !memberEmailExists && data.memberEmail) {
-                      updatePayload.memberEmail = data.memberEmail;
-                    }
-
-                    if (Object.keys(updatePayload).length === 0) {
-                      // If still empty, just force a dummy update to trigger Firestore update
-                      updatePayload.forceUpdate = new Date().toISOString();
-                    }
-
-                    await updateDoc(docRef, updatePayload);
-                    log(`${id} (${emailForLog}) – Warning: Existing record missing required fields, forced update`, "warning");
-                    updated++;
-                  }
+                  log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
+                  skipped++;
                 }
+
               } else {
                 await setDoc(docRef, data);
                 log(`${id} (${emailForLog}) – Saved`, "success");
