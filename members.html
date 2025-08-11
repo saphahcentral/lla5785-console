@@ -10,14 +10,18 @@
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background-color: #eee; }
     button { padding: 5px 10px; }
-    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; height: 150px; overflow-y: auto; }
+    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; height: 180px; overflow-y: auto; border-radius: 4px; }
+    #authStatus { font-weight: bold; margin-top: 8px; }
   </style>
-  <!-- Firebase App (the core Firebase SDK) -->
+  <!-- Firebase App & Firestore & Auth (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <h1>LLA5785 Console - Members</h1>
+  <div id="authStatus">Checking authentication...</div>
+
   <table id="membersTable">
     <thead>
       <tr>
@@ -33,43 +37,46 @@
   <pre id="console">Console log:</pre>
 
   <script>
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
     const firebaseConfig = {
-      apiKey: "AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M",
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
       projectId: "lla5785v3-0",
-      storageBucket: "lla5785v3-0.appspot.com",
-      messagingSenderId: "693326104186",
-      appId: "1:693326104186:web:19058ba6f6201092024a5b"
+      storageBucket: "lla5785v3-0.firebasestorage.app",
+      messagingSenderId: "730972554331",
+      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
     const logEl = document.getElementById("console");
-    const log = (msg) => {
-      logEl.textContent += "\n" + msg;
+    const authStatusEl = document.getElementById("authStatus");
+    function log(msg) {
+      const ts = new Date().toISOString();
+      logEl.textContent += `\n[${ts}] ${msg}`;
       logEl.scrollTop = logEl.scrollHeight;
-    };
+      console.log(msg);
+    }
 
-    const loadMembers = async () => {
-      const tableBody = document.querySelector("#membersTable tbody");
-      tableBody.innerHTML = "";
+    log(`Firebase projectId: ${firebase.app().options.projectId}`);
+
+    async function loadMembers() {
+      const tbody = document.querySelector("#membersTable tbody");
+      tbody.innerHTML = "";
       try {
         const snapshot = await db.collection("members").get();
-
         if (snapshot.empty) {
           log("⚠️ No members found in collection.");
           return;
         }
-
-        log(`🔍 Found ${snapshot.size} member(s). Loading...`);
-
+        log(`🔍 Found ${snapshot.size} member(s).`);
         snapshot.forEach(doc => {
           log(`Doc ID: ${doc.id}`);
-
-          const data = doc.data();
-          const row = tableBody.insertRow();
-
+          const data = doc.data() || {};
+          const row = tbody.insertRow();
           row.insertCell().textContent = data.email || "(no email)";
           row.insertCell().textContent = data.plan || "-";
           row.insertCell().textContent = data.status || "-";
@@ -77,26 +84,46 @@
           const actionsCell = row.insertCell();
           const deleteBtn = document.createElement("button");
           deleteBtn.textContent = "Delete";
-          deleteBtn.onclick = () => {
-            if (confirm(`Delete ${data.email || "(no email)"}?`)) {
-              db.collection("members").doc(doc.id).delete()
-                .then(() => {
-                  log(`Deleted: ${data.email || "(no email)"}`);
-                  loadMembers();
-                })
-                .catch(err => log("Delete error: " + err));
+          deleteBtn.onclick = async () => {
+            if (!confirm(`Delete ${data.email || doc.id}?`)) return;
+            try {
+              await db.collection("members").doc(doc.id).delete();
+              log(`Deleted: ${data.email || doc.id}`);
+              await loadMembers();
+            } catch (err) {
+              log("Delete error: " + err.message);
             }
           };
           actionsCell.appendChild(deleteBtn);
         });
-
         log("✅ Members loaded.");
       } catch (e) {
-        log("❌ Error loading members: " + e.message);
+        log("❌ Error loading members: " + (e.message || e));
+        if (e.code === 'permission-denied') {
+          log("Permission denied — check Firestore rules and that you are signed in as admin.");
+        }
       }
-    };
+    }
 
-    loadMembers();
+    auth.onAuthStateChanged(async (user) => {
+      log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
+      if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+        try {
+          await loadMembers();
+        } catch (e) {
+          log("loadMembers after auth error: " + e.message);
+        }
+      } else {
+        authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+        log("Access denied: non-admin or not signed in.");
+      }
+    });
+
+    // window-level error logging
+    window.addEventListener('error', (ev) => {
+      log('Window error: ' + ev.message);
+    });
   </script>
 </body>
 </html>

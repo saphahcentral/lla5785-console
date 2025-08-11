@@ -10,20 +10,25 @@
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background-color: #eee; }
     button { padding: 5px 10px; }
-    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; }
+    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; height: 180px; overflow-y: auto; border-radius: 4px;}
+    #authStatus { font-weight: bold; margin-top: 8px; }
   </style>
-  <!-- Firebase App (the core Firebase SDK) -->
+  <!-- Firebase App & Firestore & Auth (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <h1>LLA5785 Console - Ads</h1>
+  <div id="authStatus">Checking authentication...</div>
+
   <table id="adsTable">
     <thead>
       <tr>
         <th>Type</th>
         <th>URL</th>
         <th>Target</th>
+        <th>Member Email</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -33,56 +38,106 @@
   <pre id="console">Console log:</pre>
 
   <script>
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
     const firebaseConfig = {
-      apiKey: "AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M",
-      authDomain: "lla5785.firebaseapp.com",
-      projectId: "lla5785",
-      storageBucket: "lla5785.appspot.com",
-      messagingSenderId: "693326104186",
-      appId: "1:693326104186:web:19058ba6f6201092024a5b"
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+      authDomain: "lla5785v3-0.firebaseapp.com",
+      projectId: "lla5785v3-0",
+      storageBucket: "lla5785v3-0.firebasestorage.app",
+      messagingSenderId: "730972554331",
+      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
-    const log = (msg) => {
-      document.getElementById("console").textContent += "\n" + msg;
-    };
+    const logEl = document.getElementById("console");
+    const authStatusEl = document.getElementById("authStatus");
+    function log(msg) {
+      const ts = new Date().toISOString();
+      logEl.textContent += `\n[${ts}] ${msg}`;
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(msg);
+    }
 
-    const loadAds = async () => {
-      const table = document.querySelector("#adsTable tbody");
-      table.innerHTML = "";
+    // Debug: show which project we're connected to
+    log(`Firebase projectId: ${firebase.app().options.projectId}`);
+
+    // Only load data after auth confirms admin
+    function requireAdminThen(fn) {
+      const user = auth.currentUser;
+      if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        return Promise.resolve().then(fn);
+      } else {
+        return Promise.reject(new Error("Not authenticated as admin"));
+      }
+    }
+
+    async function loadAds() {
+      const tbody = document.querySelector("#adsTable tbody");
+      tbody.innerHTML = "";
       try {
         const snapshot = await db.collection("ad_list").get();
+        if (snapshot.empty) {
+          log("⚠️ No ads found in ad_list collection.");
+          return;
+        }
+        log(`🔍 Found ${snapshot.size} ad(s).`);
         snapshot.forEach(doc => {
-          const data = doc.data();
-          const row = table.insertRow();
+          const data = doc.data() || {};
+          const row = tbody.insertRow();
           row.insertCell().textContent = data.type || "-";
           row.insertCell().textContent = data.url || "-";
           row.insertCell().textContent = data.target || "-";
-
+          // include member email (if present) for traceability
+          row.insertCell().textContent = data.memberEmail || data.email || "(no member email)";
           const actionsCell = row.insertCell();
           const deleteBtn = document.createElement("button");
           deleteBtn.textContent = "Delete";
-          deleteBtn.onclick = () => {
-            if (confirm(`Delete ad ${data.url}?`)) {
-              db.collection("ad_list").doc(doc.id).delete()
-                .then(() => {
-                  log(`Deleted: ${data.url}`);
-                  loadAds();
-                })
-                .catch(err => log("Delete error: " + err));
+          deleteBtn.onclick = async () => {
+            if (!confirm(`Delete ad ${data.url || doc.id}?`)) return;
+            try {
+              await db.collection("ad_list").doc(doc.id).delete();
+              log(`Deleted ad: ${data.url || doc.id}`);
+              await loadAds();
+            } catch (err) {
+              log(`Delete error: ${err.message}`);
             }
           };
           actionsCell.appendChild(deleteBtn);
         });
-        log("Ads loaded.");
+        log("✅ Ads loaded.");
       } catch (e) {
-        log("Error loading ads: " + e.message);
+        log("❌ Error loading ads: " + (e.message || e));
+        if (e.code === 'permission-denied') {
+          log("Permission denied — check Firestore rules and that you are signed in as admin.");
+        }
       }
-    };
+    }
 
-    loadAds();
+    // Auth state handling (enable/disable page)
+    auth.onAuthStateChanged(async (user) => {
+      log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
+      if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+        try {
+          await loadAds();
+        } catch (e) {
+          log("LoadAds after auth error: " + e.message);
+        }
+      } else {
+        authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+        log("Access denied: non-admin or not signed in.");
+        // Optionally: show prompt to sign-in (if you want)
+      }
+    });
+
+    // Extra: log connectivity errors from the client SDK via window.onerror
+    window.addEventListener('error', (ev) => {
+      log('Window error: ' + ev.message);
+    });
   </script>
 </body>
 </html>

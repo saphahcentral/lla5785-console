@@ -5,59 +5,37 @@
   <title>LLA5785 Console - Backup to Google Drive</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #fafafa;
-    }
-    button {
-      padding: 10px 16px;
-      font-size: 16px;
-      background-color: #007acc;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 5px 0;
-    }
-    button:hover {
-      background-color: #005fa3;
-    }
-    pre {
-      background: #222;
-      color: #0f0;
-      padding: 15px;
-      height: 300px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      margin-top: 20px;
-      border-radius: 4px;
-    }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
+    button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px 0; }
+    button:disabled { background:#9fc3ea; cursor:not-allowed; }
+    pre { background: #222; color: #0f0; padding: 15px; height: 320px; overflow-y: auto; white-space: pre-wrap; margin-top: 20px; border-radius: 4px; }
+    #authStatus { font-weight: bold; margin-bottom: 12px; }
   </style>
 
-  <!-- Firebase and Google API client -->
+  <!-- Firebase (compat) and Google API client -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://apis.google.com/js/api.js"></script>
-
 </head>
 <body>
 
 <h1>LLA5785 Console - Backup Firestore to Google Drive</h1>
+<div id="authStatus">Checking authentication...</div>
 
-<button id="authorizeBtn">Authorize Google Drive</button>
+<button id="authorizeBtn" disabled>Authorize Google Drive</button>
 <button id="backupBtn" disabled>Backup Members & Ads to Drive</button>
 
 <pre id="logConsole">Ready.</pre>
 
 <script>
-  // ==== Use your actual OAuth 2.0 credentials here ====
+  const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
+  // Google Drive OAuth keys (kept same as your original file)
   const CLIENT_ID = '693326104186-00t3vrvt7ogotf65hvljgqcmcg9c5nfq.apps.googleusercontent.com';
   const API_KEY = 'AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M';
-
   const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
   const SCOPES = 'https://www.googleapis.com/auth/drive.file';
-
   const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
 
   const firebaseConfig = {
@@ -70,22 +48,31 @@
     measurementId: "G-WZNQ24S4DM"
   };
 
-  // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
+  const auth = firebase.auth();
 
   const authorizeBtn = document.getElementById('authorizeBtn');
   const backupBtn = document.getElementById('backupBtn');
   const logConsole = document.getElementById('logConsole');
+  const authStatusEl = document.getElementById('authStatus');
 
   function log(text) {
-    logConsole.textContent += '\n' + text;
+    const ts = new Date().toISOString();
+    logConsole.textContent += `\n[${ts}] ${text}`;
     logConsole.scrollTop = logConsole.scrollHeight;
+    console.log(text);
   }
 
-  // Load Google API client and auth2 library
+  log(`Firebase projectId: ${firebase.app().options.projectId}`);
+
+  // Google API client initialization
   function handleClientLoad() {
-    gapi.load('client:auth2', initClient);
+    try {
+      gapi.load('client:auth2', initClient);
+    } catch (e) {
+      log("gapi.load error: " + e.message);
+    }
   }
 
   function initClient() {
@@ -99,8 +86,8 @@
       updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
       authorizeBtn.onclick = handleAuthClick;
       backupBtn.onclick = handleBackupClick;
-    }, (error) => {
-      log('Error loading Google API client: ' + JSON.stringify(error, null, 2));
+    }).catch(err => {
+      log('Error loading Google API client: ' + JSON.stringify(err, null, 2));
     });
   }
 
@@ -108,7 +95,7 @@
     if (isSignedIn) {
       authorizeBtn.style.display = 'none';
       backupBtn.disabled = false;
-      log('✅ Authorized.');
+      log('✅ Google Drive Authorization ready.');
     } else {
       authorizeBtn.style.display = 'inline-block';
       backupBtn.disabled = true;
@@ -159,11 +146,9 @@
   }
 
   async function handleBackupClick() {
-    logConsole.textContent = "Starting backup process...\n";
-
+    log('Starting backup process...');
     try {
       const dateStr = new Date().toISOString().slice(0, 10);
-
       const membersData = await fetchCollectionData('members');
       await uploadFileToDrive(`LLA5785V3-0_Backup_members_${dateStr}.json`, JSON.stringify(membersData, null, 2));
       log(`✅ Uploaded members backup as LLA5785V3-0_Backup_members_${dateStr}.json`);
@@ -174,14 +159,37 @@
 
       log('🎉 Backup completed successfully!');
     } catch (e) {
-      log('❌ Backup error: ' + e.message);
+      log('❌ Backup error: ' + (e.message || JSON.stringify(e)));
+      if (e.result && e.result.error) log('Drive API error: ' + JSON.stringify(e.result.error));
     }
   }
 
-  window.onload = () => {
-    handleClientLoad();
-    console.log('Firebase projectId:', firebase.app().options.projectId);
-  };
+  // Only enable Google Drive actions for admin user
+  auth.onAuthStateChanged((user) => {
+    log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
+    if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+      // Initialize Google API client
+      authorizeBtn.disabled = false;
+      try {
+        handleClientLoad();
+      } catch (err) {
+        log('gapi init exception: ' + err.message);
+      }
+    } else {
+      authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+      log("Access denied: non-admin or not signed in.");
+      authorizeBtn.disabled = true;
+      backupBtn.disabled = true;
+    }
+  });
+
+  window.addEventListener('error', (ev) => {
+    log('Window error: ' + ev.message);
+  });
+
+  // show projectId for debug
+  console.log('Firebase projectId:', firebase.app().options.projectId);
 </script>
 
 </body>
