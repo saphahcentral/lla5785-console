@@ -167,9 +167,7 @@
             const emailForLog = data.email || data.Email || "(no email)";
             const userIdForLog = data.memberID || data.MemberID || "(no userID)";
 
-            // Instead of skipping records with missing email or userID,
-            // log a warning but proceed.
-
+            // Warn if email or userID missing but proceed
             if (!emailForLog || emailForLog === "(no email)") {
               log(`${id} – Warning: Email is empty or missing`, "warning");
             }
@@ -234,8 +232,30 @@
                   log(`${id} (${emailForLog}) – Updated missing fields`, "success");
                   updated++;
                 } else {
-                  log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
-                  skipped++;
+                  // Only skip if ALL required fields are present
+                  const emailExists = existingData.email && existingData.email.trim() !== "";
+                  const memberIDExists = existingData.memberID && existingData.memberID.trim() !== "";
+                  const memberEmailExists = existingData.memberEmail && existingData.memberEmail.trim() !== "";
+
+                  let canSkip = false;
+
+                  if (type === "members") {
+                    canSkip = emailExists && memberIDExists;
+                  } else if (type === "ads") {
+                    canSkip = emailExists && memberIDExists && memberEmailExists;
+                  } else if (type === "testimonials") {
+                    canSkip = true;
+                  }
+
+                  if (canSkip) {
+                    log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
+                    skipped++;
+                  } else {
+                    // Missing required fields - force update (even if updatePayload empty)
+                    log(`${id} (${emailForLog}) – Warning: Existing record missing required fields, forcing update`, "warning");
+                    await updateDoc(docRef, updatePayload);
+                    updated++;
+                  }
                 }
               } else {
                 await setDoc(docRef, data);
