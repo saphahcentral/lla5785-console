@@ -52,6 +52,15 @@
       color: #006600;
       margin-bottom: 10px;
     }
+    .warning {
+      color: #b56500;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
   </style>
 </head>
 <body>
@@ -102,7 +111,11 @@
       { url: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTT2zrm8O3gf1G_LqqUL75XZ25rxzs9GpiBMQoOYaphqLliloHvGIeoZIO6tKE56EzZyo2xBnUKis39/pub?output=csv", type: "testimonials", name: "Testimonials" }
     ];
 
-    function log(message) {
+    function log(message, type = '') {
+      if(type === 'warning') message = `⚠️ ${message}`;
+      else if(type === 'error') message = `❌ ${message}`;
+      else if(type === 'success') message = `✅ ${message}`;
+
       logEl.textContent += message + "\n";
       logEl.scrollTop = logEl.scrollHeight;
     }
@@ -146,24 +159,37 @@
             }
 
             if (!id) {
-              log(`❌ Skipping record #${i} – no usable ID`);
+              log(`Skipping record #${i} – no usable ID`, "error");
               continue;
             }
             id = id.toString().trim();
+
             const emailForLog = data.email || data.Email || "(no email)";
+            const userIdForLog = data.memberID || data.MemberID || "(no userID)";
+
+            // Instead of skipping records with missing email or userID,
+            // log a warning but proceed.
+
+            if (!emailForLog || emailForLog === "(no email)") {
+              log(`${id} – Warning: Email is empty or missing`, "warning");
+            }
+            if (!userIdForLog || userIdForLog === "(no userID)") {
+              log(`${id} – Warning: UserID is empty or missing`, "warning");
+            }
 
             if (type === "testimonials") {
               try {
                 await setDoc(doc(db, "members", id), { testimonial: data.testimonial || data.Testimonial || "" }, { merge: true });
-                log(`${id} (${emailForLog}) – Testimonial updated`);
+                log(`${id} (${emailForLog}) – Testimonial updated`, "success");
                 saved++;
               } catch (e) {
-                log(`${id} (${emailForLog}) – ❌ ${e.message}`);
+                log(`${id} (${emailForLog}) – ❌ ${e.message}`, "error");
               }
               continue;
             }
 
             let collectionName = (type === "ads") ? "ad_list" : "members";
+
             try {
               const docRef = doc(db, collectionName, id);
               const existing = await getDoc(docRef);
@@ -188,46 +214,46 @@
                 const updatePayload = {};
 
                 // Update missing email
-                if (!existingData.email && (data.email || data.Email)) {
+                if ((!existingData.email || existingData.email === "") && (data.email || data.Email)) {
                   updatePayload.email = data.email || data.Email;
                   needsUpdate = true;
                 }
                 // Update missing memberID
-                if (!existingData.memberID && (data.memberID || data.MemberID)) {
+                if ((!existingData.memberID || existingData.memberID === "") && (data.memberID || data.MemberID)) {
                   updatePayload.memberID = data.memberID || data.MemberID;
                   needsUpdate = true;
                 }
                 // Ads: update missing memberEmail
-                if (type === "ads" && !existingData.memberEmail && data.memberEmail) {
+                if (type === "ads" && (!existingData.memberEmail || existingData.memberEmail === "") && data.memberEmail) {
                   updatePayload.memberEmail = data.memberEmail;
                   needsUpdate = true;
                 }
 
                 if (needsUpdate) {
                   await updateDoc(docRef, updatePayload);
-                  log(`${id} (${emailForLog}) – Updated missing fields`);
+                  log(`${id} (${emailForLog}) – Updated missing fields`, "success");
                   updated++;
                 } else {
-                  log(`${id} (${emailForLog}) – Skipped (exists)`);
+                  log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
                   skipped++;
                 }
               } else {
                 await setDoc(docRef, data);
-                log(`${id} (${emailForLog}) – Saved`);
+                log(`${id} (${emailForLog}) – Saved`, "success");
                 saved++;
               }
             } catch (e) {
-              log(`${id} (${emailForLog}) – ❌ ${e.message}`);
+              log(`${id} (${emailForLog}) – ❌ ${e.message}`, "error");
             }
           }
 
-          log(`✅ ${name}: ${saved} saved, ${updated} updated, ${skipped} skipped.\n`);
+          log(`\n${name}: ${saved} saved, ${updated} updated, ${skipped} skipped.\n`);
           totalSaved += saved;
           totalUpdated += updated;
           totalSkipped += skipped;
 
         } catch (err) {
-          log(`❌ Failed ${name}: ${err.message}\n`);
+          log(`❌ Failed ${name}: ${err.message}\n`, "error");
         }
       }
 
