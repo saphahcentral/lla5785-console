@@ -66,12 +66,12 @@
       getFirestore,
       doc,
       getDoc,
-      setDoc
+      setDoc,
+      updateDoc
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
     import {
       getAuth,
-      onAuthStateChanged,
-      signOut
+      onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 
     const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
@@ -119,7 +119,7 @@
     async function propagate() {
       startBtn.disabled = true;
       log("\nStarting propagation...\n");
-      let totalSaved = 0, totalSkipped = 0;
+      let totalSaved = 0, totalSkipped = 0, totalUpdated = 0;
 
       for (const { url, type, name } of dataSources) {
         log(`Fetching ${name}...`);
@@ -127,7 +127,7 @@
         try {
           const rows = await fetchCSV(url);
           const headers = rows[0];
-          let saved = 0, skipped = 0;
+          let saved = 0, skipped = 0, updated = 0;
 
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
@@ -136,13 +136,20 @@
               data[h] = row[idx] ?? "";
             });
 
-            let id = data.email || data.Email || data.Timestamp || `record_${i}`;
-
-            if (!id) {
-              log(`❌ Skipping record #${i} due to missing ID`);
-              continue;
+            let id;
+            if (type === "members") {
+              id = data.memberID || data.MemberID || data.email || data.Email || `member_${i}`;
+            } else if (type === "ads") {
+              id = data.adId || data.AdId || data.Timestamp || `ad_${i}`;
+            } else if (type === "testimonials") {
+              id = data.memberID || data.MemberID || data.email || data.Email || `member_${i}`;
             }
 
+            if (!id) {
+              log(`❌ Skipping record #${i} – no usable ID`);
+              continue;
+            }
+            id = id.toString().trim();
             const emailForLog = data.email || data.Email || "(no email)";
 
             if (type === "testimonials") {
@@ -150,29 +157,62 @@
                 await setDoc(doc(db, "members", id), { testimonial: data.testimonial || data.Testimonial || "" }, { merge: true });
                 log(`${id} (${emailForLog}) – Testimonial updated`);
                 saved++;
-              } catch(e) {
+              } catch (e) {
                 log(`${id} (${emailForLog}) – ❌ ${e.message}`);
               }
               continue;
             }
 
             let collectionName = (type === "ads") ? "ad_list" : "members";
-
             try {
               const docRef = doc(db, collectionName, id);
               const existing = await getDoc(docRef);
 
-              if (existing.exists()) {
-                log(`${id} (${emailForLog}) – Skipped (exists)`);
-                skipped++;
-              } else {
-                const cleanData = {};
-                for (const [key, val] of Object.entries(data)) {
-                  if (key.trim() !== "") {
-                    cleanData[key] = val;
+              // Ads: fetch memberEmail if missing
+              if (type === "ads" && (!data.memberEmail && (data.memberID || data.MemberID))) {
+                const memId = data.memberID || data.MemberID;
+                if (memId) {
+                  const memberSnap = await getDoc(doc(db, "members", memId));
+                  if (memberSnap.exists()) {
+                    const memEmail = memberSnap.data().email;
+                    if (memEmail) {
+                      data.memberEmail = memEmail;
+                    }
                   }
                 }
-                await setDoc(docRef, cleanData);
+              }
+
+              if (existing.exists()) {
+                const existingData = existing.data();
+                let needsUpdate = false;
+                const updatePayload = {};
+
+                // Update missing email
+                if (!existingData.email && (data.email || data.Email)) {
+                  updatePayload.email = data.email || data.Email;
+                  needsUpdate = true;
+                }
+                // Update missing memberID
+                if (!existingData.memberID && (data.memberID || data.MemberID)) {
+                  updatePayload.memberID = data.memberID || data.MemberID;
+                  needsUpdate = true;
+                }
+                // Ads: update missing memberEmail
+                if (type === "ads" && !existingData.memberEmail && data.memberEmail) {
+                  updatePayload.memberEmail = data.memberEmail;
+                  needsUpdate = true;
+                }
+
+                if (needsUpdate) {
+                  await updateDoc(docRef, updatePayload);
+                  log(`${id} (${emailForLog}) – Updated missing fields`);
+                  updated++;
+                } else {
+                  log(`${id} (${emailForLog}) – Skipped (exists)`);
+                  skipped++;
+                }
+              } else {
+                await setDoc(docRef, data);
                 log(`${id} (${emailForLog}) – Saved`);
                 saved++;
               }
@@ -181,8 +221,9 @@
             }
           }
 
-          log(`✅ ${name}: ${saved} saved, ${skipped} skipped.\n`);
+          log(`✅ ${name}: ${saved} saved, ${updated} updated, ${skipped} skipped.\n`);
           totalSaved += saved;
+          totalUpdated += updated;
           totalSkipped += skipped;
 
         } catch (err) {
@@ -190,24 +231,18 @@
         }
       }
 
-      log(`Propagation complete. Total saved: ${totalSaved}, skipped: ${totalSkipped}`);
+      log(`Propagation complete. Total saved: ${totalSaved}, updated: ${totalUpdated}, skipped: ${totalSkipped}`);
       startBtn.disabled = false;
     }
 
     onAuthStateChanged(auth, (user) => {
-      console.log("Auth state changed:", user);
-      if (user) {
-        const emailLower = (user.email || "").toLowerCase();
-        const adminLower = ADMIN_EMAIL.toLowerCase();
-        console.log("User email:", user.email);
-        if (emailLower === adminLower) {
-          authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
-          startBtn.disabled = false;
-          return;
-        }
+      if (user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+        startBtn.disabled = false;
+      } else {
+        authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+        startBtn.disabled = true;
       }
-      authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
-      startBtn.disabled = true;
     });
 
     startBtn.addEventListener("click", () => {
