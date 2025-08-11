@@ -227,8 +227,25 @@
                   log(`${id} (${emailForLog}) – Updated missing fields`, "success");
                   updated++;
                 } else {
-                  log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
-                  skipped++;
+                  // Check for missing required fields
+                  const emailExists = existingData.email && existingData.email.trim() !== "";
+                  const memberIDExists = existingData.memberID && existingData.memberID.trim() !== "";
+                  const memberEmailExists = existingData.memberEmail && existingData.memberEmail.trim() !== "";
+
+                  const missingRequired =
+                    (type === "members" && (!emailExists || !memberIDExists)) ||
+                    (type === "ads" && (!emailExists || !memberIDExists || !memberEmailExists));
+
+                  if (missingRequired) {
+                    // Force update with timestamp to trigger write
+                    const forceUpdate = { forceUpdate: new Date().toISOString() };
+                    await updateDoc(docRef, forceUpdate);
+                    log(`${id} (${emailForLog}) – Forced update due to missing required fields`, "warning");
+                    updated++;
+                  } else {
+                    log(`${id} (${emailForLog}) – Skipped (exists with all needed fields)`);
+                    skipped++;
+                  }
                 }
 
               } else {
