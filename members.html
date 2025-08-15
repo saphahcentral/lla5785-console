@@ -1,202 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Members Management</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body { font-family: Arial, sans-serif; margin: 0; background: #eef6ff; }
-  header { padding: 10px; background: #004080; color: white; }
-  .container { display: flex; gap: 20px; padding: 20px; }
-  .table-container { flex: 3; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.2);}
-  .console-container { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
-  button { padding: 6px 12px; margin: 2px; cursor: pointer; border: none; border-radius: 4px; }
-  .add-btn { background: #28a745; color: white; margin-bottom: 10px; }
-  .edit-btn { background: #ffc107; }
-  .delete-btn { background: #dc3545; color: white; }
-  /* Modal Styles */
-  .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-           background: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
-  .modal-content { background: white; padding: 20px; border-radius: 8px; width: 400px; max-width: 90%; }
-  .modal-content input, .modal-content select { width: 100%; padding: 8px; margin: 6px 0; }
-  .modal-content .close { float: right; cursor: pointer; }
-</style>
+  <meta charset="UTF-8">
+  <title>LLA5785 Console - Members</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f9f9f9; display: flex; }
+    .content { flex: 1; margin-right: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #eee; }
+    button { padding: 5px 10px; margin-right: 5px; }
+    #console { flex: 0 0 300px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: calc(100vh - 40px); overflow-y: auto; border-radius: 4px;}
+    #authStatus { font-weight: bold; margin-top: 8px; }
+    #addMember { margin-top: 10px; padding: 10px 15px; font-weight: bold; }
+    #memberFormOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; }
+    #memberForm { background: #fff; padding: 20px; border-radius: 10px; width: 400px; }
+    #memberForm label { display:block; margin-top:10px; }
+    #memberForm input, #memberForm select { width:100%; padding:5px; margin-top:3px; }
+    #memberForm button { margin-top:15px; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+  <div class="content">
+    <h1>LLA5785 Console - Members</h1>
+    <div id="authStatus">Checking authentication...</div>
+    <button id="addMember">➕ Add Member</button>
 
-<header>
-  <h1>Members Management</h1>
-</header>
-
-<div class="container">
-  <!-- Main Table -->
-  <div class="table-container">
-    <button id="addMember" class="add-btn">➕ Add Member</button>
     <table id="membersTable">
       <thead>
-        <tr><th>Email Address</th><th>Actions</th></tr>
+        <tr>
+          <th>Email</th>
+          <th>Actions</th>
+        </tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
 
-  <!-- Console -->
-  <div class="console-container">
-    <h3>Console</h3>
-    <pre id="consoleLog"></pre>
-  </div>
-</div>
+  <pre id="console">Console log:</pre>
 
-<!-- Modal Form -->
-<div id="memberModal" class="modal">
-  <div class="modal-content">
-    <span id="closeModal" class="close">✖</span>
-    <h3 id="modalTitle">Add Member</h3>
+  <!-- Pop-up form -->
+  <div id="memberFormOverlay">
     <form id="memberForm">
-      <input type="hidden" id="recordId">
-      <label>Email:</label>
-      <input type="email" id="email" required>
-      <label>User ID:</label>
-      <input type="text" id="userId" required>
-      <label>Name:</label>
-      <input type="text" id="name" required>
-      <label>Address:</label>
-      <input type="text" id="address" required>
-      <label>Status:</label>
-      <select id="status" required>
-        <option value="PENDING">PENDING</option>
-        <option value="APPROVED">APPROVED</option>
-      </select>
-      <label>Upgrade Level:</label>
-      <select id="upgradeLevel" required>
-        <option value="FREE">FREE</option>
-        <option value="VIP">VIP</option>
-        <option value="UPGRADED">UPGRADED</option>
-        <option value="ADMIN">ADMIN</option>
-      </select>
-      <label>Date Stamp:</label>
-      <input type="date" id="dateStamp" required>
-      <label>Upgrade Date:</label>
-      <input type="date" id="upgradeDate" required>
-      <button type="submit" class="add-btn">✅ Commit</button>
+      <h3 id="formTitle">Add Member</h3>
+      <label>Email <input type="email" id="email" required></label>
+      <label>User ID <input type="text" id="userID" required></label>
+      <label>Status 
+        <select id="status" required>
+          <option value="">Select</option>
+          <option value="PENDING">PENDING</option>
+          <option value="APPROVED">APPROVED</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+      </label>
+      <label>Upgrade Level
+        <select id="upgradeLevel" required>
+          <option value="">Select</option>
+          <option value="FREE">FREE</option>
+          <option value="UPGRADED">UPGRADED</option>
+          <option value="VIP">VIP</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+      </label>
+      <label>Timestamp <input type="date" id="timestamp" required></label>
+      <label>Upgrade Date <input type="date" id="upgradeDate" required></label>
+      <label>Testimonial <input type="text" id="testimonial"></label>
+      <label>Testimonial Date <input type="date" id="testimonialDate"></label>
+      <div style="margin-top:15px;">
+        <button type="submit" id="commitBtn">Commit</button>
+        <button type="button" id="cancelBtn">Cancel</button>
+      </div>
     </form>
   </div>
-</div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+  <script>
+    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+      authDomain: "lla5785v3-0.firebaseapp.com",
+      projectId: "lla5785v3-0",
+      storageBucket: "lla5785v3-0.firebasestorage.app",
+      messagingSenderId: "730972554331",
+      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
-  authDomain: "lla5785v3-0.firebaseapp.com",
-  projectId: "lla5785v3-0",
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+    const logEl = document.getElementById("console");
+    const authStatusEl = document.getElementById("authStatus");
+    const tbody = document.querySelector("#membersTable tbody");
+    const addBtn = document.getElementById("addMember");
+    const overlay = document.getElementById("memberFormOverlay");
+    const form = document.getElementById("memberForm");
+    const formTitle = document.getElementById("formTitle");
+    const commitBtn = document.getElementById("commitBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
 
-const membersTable = document.querySelector("#membersTable tbody");
-const consoleLog = document.getElementById("consoleLog");
-const memberModal = document.getElementById("memberModal");
-const closeModal = document.getElementById("closeModal");
-const memberForm = document.getElementById("memberForm");
-const modalTitle = document.getElementById("modalTitle");
+    function log(msg) {
+      const ts = new Date().toISOString();
+      logEl.textContent += `\n[${ts}] ${msg}`;
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(msg);
+    }
 
-let editingId = null;
+    let editingDocId = null;
 
-function log(msg) {
-  consoleLog.textContent += msg + "\n";
-}
+    function showForm(editData=null, docId=null) {
+      overlay.style.display = 'flex';
+      editingDocId = docId;
+      formTitle.textContent = editData ? 'Edit Member' : 'Add Member';
+      document.getElementById("email").value = editData?.email || '';
+      document.getElementById("userID").value = editData?.userID || '';
+      document.getElementById("status").value = editData?.status || '';
+      document.getElementById("upgradeLevel").value = editData?.upgradeLevel || '';
+      document.getElementById("timestamp").value = editData?.timestamp || new Date().toISOString().split('T')[0];
+      document.getElementById("upgradeDate").value = editData?.upgradeDate || new Date().toISOString().split('T')[0];
+      document.getElementById("testimonial").value = editData?.testimonial || '';
+      document.getElementById("testimonialDate").value = editData?.testimonialDate || '';
+    }
 
-// Load members
-async function loadMembers() {
-  membersTable.innerHTML = "";
-  const snapshot = await getDocs(collection(db, "members"));
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${data.email || ""}</td>
-      <td>
-        <button class="edit-btn" data-id="${docSnap.id}">✏️</button>
-        <button class="delete-btn" data-id="${docSnap.id}">🗑️</button>
-      </td>
-    `;
-    membersTable.appendChild(tr);
-  });
-}
-loadMembers();
+    function hideForm() {
+      overlay.style.display = 'none';
+      editingDocId = null;
+    }
 
-// Open modal
-document.getElementById("addMember").addEventListener("click", () => {
-  editingId = null;
-  modalTitle.textContent = "Add Member";
-  memberForm.reset();
-  document.getElementById("dateStamp").value = new Date().toISOString().split("T")[0];
-  memberModal.style.display = "flex";
-});
+    cancelBtn.addEventListener('click', hideForm);
+    addBtn.addEventListener('click', () => showForm());
 
-membersTable.addEventListener("click", async (e) => {
-  if (e.target.classList.contains("edit-btn")) {
-    editingId = e.target.dataset.id;
-    const docSnap = await getDocs(query(collection(db, "members"), where("__name__", "==", editingId)));
-    docSnap.forEach(d => {
-      const m = d.data();
-      document.getElementById("email").value = m.email;
-      document.getElementById("userId").value = m.userId;
-      document.getElementById("name").value = m.name;
-      document.getElementById("address").value = m.address;
-      document.getElementById("status").value = m.status;
-      document.getElementById("upgradeLevel").value = m.upgradeLevel;
-      document.getElementById("dateStamp").value = m.dateStamp;
-      document.getElementById("upgradeDate").value = m.upgradeDate;
+    async function loadMembers() {
+      tbody.innerHTML = '';
+      try {
+        const snapshot = await db.collection("members").get();
+        if(snapshot.empty) { log("⚠️ No members found."); return; }
+        snapshot.forEach(doc => {
+          const data = doc.data() || {};
+          const row = tbody.insertRow();
+          row.insertCell().textContent = data.email || "(no email)";
+          const actions = row.insertCell();
+          const editBtn = document.createElement('button');
+          editBtn.textContent = "Edit";
+          editBtn.onclick = () => showForm(data, doc.id);
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = "Delete";
+          deleteBtn.onclick = async () => {
+            if(!confirm(`Delete ${data.email}?`)) return;
+            try { await db.collection("members").doc(doc.id).delete(); log(`Deleted ${data.email}`); await loadMembers(); }
+            catch(err){ log("Delete error: "+err.message); }
+          };
+          actions.appendChild(editBtn);
+          actions.appendChild(deleteBtn);
+        });
+        log(`✅ Members loaded: ${snapshot.size}`);
+      } catch(e) {
+        log("❌ Error loading members: "+(e.message||e));
+      }
+    }
+
+    async function isUnique(field, value, excludeDocId=null){
+      const snapshot = await db.collection("members").where(field,"==",value).get();
+      return snapshot.empty || (excludeDocId && snapshot.docs.every(d=>d.id===excludeDocId));
+    }
+
+    form.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const memberData = {
+        email: document.getElementById("email").value.trim(),
+        userID: document.getElementById("userID").value.trim(),
+        status: document.getElementById("status").value,
+        upgradeLevel: document.getElementById("upgradeLevel").value,
+        timestamp: document.getElementById("timestamp").value,
+        upgradeDate: document.getElementById("upgradeDate").value,
+        testimonial: document.getElementById("testimonial").value.trim(),
+        testimonialDate: document.getElementById("testimonialDate").value
+      };
+
+      // Validation
+      if(!memberData.email || !memberData.userID || !memberData.status || !memberData.upgradeLevel){
+        alert("Email, UserID, Status, and Upgrade Level are required.");
+        return;
+      }
+      if(memberData.upgradeDate < memberData.timestamp){
+        alert("Upgrade date must be newer than timestamp.");
+        return;
+      }
+      if(!["APPROVED","PENDING","ADMIN"].includes(memberData.status)){
+        alert("Invalid status.");
+        return;
+      }
+      if(!["FREE","UPGRADED","VIP","ADMIN"].includes(memberData.upgradeLevel)){
+        alert("Invalid upgrade level.");
+        return;
+      }
+
+      try {
+        const emailUnique = await isUnique("email", memberData.email, editingDocId);
+        if(!emailUnique){ alert("Email already exists."); return; }
+        const userIdUnique = await isUnique("userID", memberData.userID, editingDocId);
+        if(!userIdUnique){ alert("UserID already exists."); return; }
+
+        if(editingDocId){
+          await db.collection("members").doc(editingDocId).set(memberData);
+          log(`Updated member: ${memberData.email}`);
+        } else {
+          const newDoc = db.collection("members").doc(); // auto-id
+          await newDoc.set(memberData);
+          log(`Added new member: ${memberData.email}`);
+        }
+
+        hideForm();
+        await loadMembers();
+      } catch(err){ log("Commit error: "+err.message); }
     });
-    modalTitle.textContent = "Edit Member";
-    memberModal.style.display = "flex";
-  }
-  if (e.target.classList.contains("delete-btn")) {
-    await deleteDoc(doc(db, "members", e.target.dataset.id));
-    log("Deleted member ID: " + e.target.dataset.id);
-    loadMembers();
-  }
-});
 
-// Commit ADD/EDIT
-memberForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const data = {
-    email: document.getElementById("email").value.trim(),
-    userId: document.getElementById("userId").value.trim(),
-    name: document.getElementById("name").value.trim(),
-    address: document.getElementById("address").value.trim(),
-    status: document.getElementById("status").value,
-    upgradeLevel: document.getElementById("upgradeLevel").value,
-    dateStamp: document.getElementById("dateStamp").value,
-    upgradeDate: document.getElementById("upgradeDate").value
-  };
-
-  // Validation: upgradeDate > dateStamp
-  if (new Date(data.upgradeDate) <= new Date(data.dateStamp)) {
-    alert("Upgrade date must be after creation date");
-    return;
-  }
-
-  if (editingId) {
-    await updateDoc(doc(db, "members", editingId), data);
-    log("Updated member: " + editingId);
-  } else {
-    await addDoc(collection(db, "members"), data);
-    log("Added member: " + data.email);
-  }
-  memberModal.style.display = "none";
-  loadMembers();
-});
-
-closeModal.addEventListener("click", () => {
-  memberModal.style.display = "none";
-});
-</script>
+    auth.onAuthStateChanged(user=>{
+      if(user && user.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
+        authStatusEl.textContent=`Authenticated as admin: ${user.email}`;
+        loadMembers();
+      }else{
+        authStatusEl.textContent="Access denied: not admin";
+        log("Access denied.");
+      }
+    });
+  </script>
 </body>
 </html>
