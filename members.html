@@ -1,231 +1,178 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>LLA5785 Console - Members</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f9f9f9; display: flex; }
-    .content { flex: 1; margin-right: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background-color: #eee; }
-    button { padding: 5px 10px; margin-right: 5px; }
-    #console { flex: 0 0 300px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: calc(100vh - 40px); overflow-y: auto; border-radius: 4px;}
-    #authStatus { font-weight: bold; margin-top: 8px; }
-    #addMember { margin-top: 10px; padding: 10px 15px; font-weight: bold; }
-    #memberFormOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; }
-    #memberForm { background: #fff; padding: 20px; border-radius: 10px; width: 400px; }
-    #memberForm label { display:block; margin-top:10px; }
-    #memberForm input, #memberForm select { width:100%; padding:5px; margin-top:3px; }
-    #memberForm button { margin-top:15px; }
-  </style>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<meta charset="UTF-8">
+<title>LLA5785 Members Console</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { font-family: Arial, sans-serif; display:flex; margin:0; background:#f4f4f4; }
+.table-container { flex:1; padding:20px; }
+table { width:100%; border-collapse: collapse; margin-top:10px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:left; }
+th { background:#eee; }
+button { padding:4px 8px; margin-right:4px; }
+#console { width:300px; background:#111; color:#0f0; padding:10px; overflow-y:auto; white-space:pre-wrap; height:100vh; }
+#authStatus { font-weight:bold; margin-bottom:10px; }
+#addMember { margin-bottom:10px; padding:6px 12px; }
+.modal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+       background:white; padding:20px; border:1px solid #ccc; border-radius:6px; z-index:1000; max-width:500px; width:90%; }
+.modal label { display:block; margin-top:8px; font-weight:bold; }
+.modal input { width:100%; padding:4px; margin-top:2px; }
+.modal button { margin-top:10px; }
+.overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; }
+</style>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <div class="content">
-    <h1>LLA5785 Console - Members</h1>
-    <div id="authStatus">Checking authentication...</div>
-    <button id="addMember">➕ Add Member</button>
+<div class="table-container">
+<h1>Members Database</h1>
+<div id="authStatus">Checking authentication...</div>
+<button id="addMember">➕ Add Member</button>
+<table id="membersTable">
+<thead><tr><th>Email</th><th>Actions</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
 
-    <table id="membersTable">
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+<pre id="console">Console log:</pre>
 
-  <pre id="console">Console log:</pre>
+<div class="overlay" id="overlay"></div>
+<div class="modal" id="memberModal">
+<h3 id="modalTitle">Edit Member</h3>
+<label>Unique ID<input type="text" id="field_uniqueID" readonly></label>
+<label>Email<input type="text" id="field_email"></label>
+<label>Status<input type="text" id="field_status"></label>
+<label>Testimonial<input type="text" id="field_testimonial"></label>
+<label>Testimonial Date<input type="text" id="field_testimonialDate"></label>
+<label>Timestamp<input type="text" id="field_timestamp"></label>
+<label>Upgrade Date<input type="text" id="field_upgradeDate"></label>
+<label>Upgrade Level<input type="text" id="field_upgradeLevel"></label>
+<label>User ID<input type="text" id="field_userID"></label>
+<button id="commitMember">✅ Commit</button>
+<button id="cancelMember">❌ Cancel</button>
+</div>
 
-  <!-- Pop-up form -->
-  <div id="memberFormOverlay">
-    <form id="memberForm">
-      <h3 id="formTitle">Add Member</h3>
-      <label>Email <input type="email" id="email" required></label>
-      <label>User ID <input type="text" id="userID" required></label>
-      <label>Status 
-        <select id="status" required>
-          <option value="">Select</option>
-          <option value="PENDING">PENDING</option>
-          <option value="APPROVED">APPROVED</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
-      </label>
-      <label>Upgrade Level
-        <select id="upgradeLevel" required>
-          <option value="">Select</option>
-          <option value="FREE">FREE</option>
-          <option value="UPGRADED">UPGRADED</option>
-          <option value="VIP">VIP</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
-      </label>
-      <label>Timestamp <input type="date" id="timestamp" required></label>
-      <label>Upgrade Date <input type="date" id="upgradeDate" required></label>
-      <label>Testimonial <input type="text" id="testimonial"></label>
-      <label>Testimonial Date <input type="date" id="testimonialDate"></label>
-      <div style="margin-top:15px;">
-        <button type="submit" id="commitBtn">Commit</button>
-        <button type="button" id="cancelBtn">Cancel</button>
-      </div>
-    </form>
-  </div>
+<script>
+const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+const firebaseConfig = {
+  apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+  authDomain: "lla5785v3-0.firebaseapp.com",
+  projectId: "lla5785v3-0"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+const logEl = document.getElementById("console");
+const authStatusEl = document.getElementById("authStatus");
+const tableBody = document.querySelector("#membersTable tbody");
+let editingDocId = null;
 
-  <script>
-    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
-    const firebaseConfig = {
-      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
-      authDomain: "lla5785v3-0.firebaseapp.com",
-      projectId: "lla5785v3-0",
-      storageBucket: "lla5785v3-0.firebasestorage.app",
-      messagingSenderId: "730972554331",
-      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const auth = firebase.auth();
+function log(msg){
+  const ts = new Date().toISOString();
+  logEl.textContent += `\n[${ts}] ${msg}`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
 
-    const logEl = document.getElementById("console");
-    const authStatusEl = document.getElementById("authStatus");
-    const tbody = document.querySelector("#membersTable tbody");
-    const addBtn = document.getElementById("addMember");
-    const overlay = document.getElementById("memberFormOverlay");
-    const form = document.getElementById("memberForm");
-    const formTitle = document.getElementById("formTitle");
-    const commitBtn = document.getElementById("commitBtn");
-    const cancelBtn = document.getElementById("cancelBtn");
-
-    function log(msg) {
-      const ts = new Date().toISOString();
-      logEl.textContent += `\n[${ts}] ${msg}`;
-      logEl.scrollTop = logEl.scrollHeight;
-      console.log(msg);
-    }
-
-    let editingDocId = null;
-
-    function showForm(editData=null, docId=null) {
-      overlay.style.display = 'flex';
-      editingDocId = docId;
-      formTitle.textContent = editData ? 'Edit Member' : 'Add Member';
-      document.getElementById("email").value = editData?.email || '';
-      document.getElementById("userID").value = editData?.userID || '';
-      document.getElementById("status").value = editData?.status || '';
-      document.getElementById("upgradeLevel").value = editData?.upgradeLevel || '';
-      document.getElementById("timestamp").value = editData?.timestamp || new Date().toISOString().split('T')[0];
-      document.getElementById("upgradeDate").value = editData?.upgradeDate || new Date().toISOString().split('T')[0];
-      document.getElementById("testimonial").value = editData?.testimonial || '';
-      document.getElementById("testimonialDate").value = editData?.testimonialDate || '';
-    }
-
-    function hideForm() {
-      overlay.style.display = 'none';
-      editingDocId = null;
-    }
-
-    cancelBtn.addEventListener('click', hideForm);
-    addBtn.addEventListener('click', () => showForm());
-
-    async function loadMembers() {
-      tbody.innerHTML = '';
-      try {
-        const snapshot = await db.collection("members").get();
-        if(snapshot.empty) { log("⚠️ No members found."); return; }
-        snapshot.forEach(doc => {
-          const data = doc.data() || {};
-          const row = tbody.insertRow();
-          row.insertCell().textContent = data.email || "(no email)";
-          const actions = row.insertCell();
-          const editBtn = document.createElement('button');
-          editBtn.textContent = "Edit";
-          editBtn.onclick = () => showForm(data, doc.id);
-          const deleteBtn = document.createElement('button');
-          deleteBtn.textContent = "Delete";
-          deleteBtn.onclick = async () => {
-            if(!confirm(`Delete ${data.email}?`)) return;
-            try { await db.collection("members").doc(doc.id).delete(); log(`Deleted ${data.email}`); await loadMembers(); }
-            catch(err){ log("Delete error: "+err.message); }
-          };
-          actions.appendChild(editBtn);
-          actions.appendChild(deleteBtn);
-        });
-        log(`✅ Members loaded: ${snapshot.size}`);
-      } catch(e) {
-        log("❌ Error loading members: "+(e.message||e));
-      }
-    }
-
-    async function isUnique(field, value, excludeDocId=null){
-      const snapshot = await db.collection("members").where(field,"==",value).get();
-      return snapshot.empty || (excludeDocId && snapshot.docs.every(d=>d.id===excludeDocId));
-    }
-
-    form.addEventListener('submit', async e=>{
-      e.preventDefault();
-      const memberData = {
-        email: document.getElementById("email").value.trim(),
-        userID: document.getElementById("userID").value.trim(),
-        status: document.getElementById("status").value,
-        upgradeLevel: document.getElementById("upgradeLevel").value,
-        timestamp: document.getElementById("timestamp").value,
-        upgradeDate: document.getElementById("upgradeDate").value,
-        testimonial: document.getElementById("testimonial").value.trim(),
-        testimonialDate: document.getElementById("testimonialDate").value
-      };
-
-      // Validation
-      if(!memberData.email || !memberData.userID || !memberData.status || !memberData.upgradeLevel){
-        alert("Email, UserID, Status, and Upgrade Level are required.");
-        return;
-      }
-      if(memberData.upgradeDate < memberData.timestamp){
-        alert("Upgrade date must be newer than timestamp.");
-        return;
-      }
-      if(!["APPROVED","PENDING","ADMIN"].includes(memberData.status)){
-        alert("Invalid status.");
-        return;
-      }
-      if(!["FREE","UPGRADED","VIP","ADMIN"].includes(memberData.upgradeLevel)){
-        alert("Invalid upgrade level.");
-        return;
-      }
-
-      try {
-        const emailUnique = await isUnique("email", memberData.email, editingDocId);
-        if(!emailUnique){ alert("Email already exists."); return; }
-        const userIdUnique = await isUnique("userID", memberData.userID, editingDocId);
-        if(!userIdUnique){ alert("UserID already exists."); return; }
-
-        if(editingDocId){
-          await db.collection("members").doc(editingDocId).set(memberData);
-          log(`Updated member: ${memberData.email}`);
-        } else {
-          const newDoc = db.collection("members").doc(); // auto-id
-          await newDoc.set(memberData);
-          log(`Added new member: ${memberData.email}`);
-        }
-
-        hideForm();
-        await loadMembers();
-      } catch(err){ log("Commit error: "+err.message); }
-    });
-
-    auth.onAuthStateChanged(user=>{
-      if(user && user.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
-        authStatusEl.textContent=`Authenticated as admin: ${user.email}`;
+async function loadMembers(){
+  tableBody.innerHTML = "";
+  try{
+    const snapshot = await db.collection("members").get();
+    if(snapshot.empty){ log("⚠️ No members found."); return; }
+    snapshot.forEach(doc=>{
+      const data = doc.data();
+      const row = tableBody.insertRow();
+      row.insertCell().textContent = data.email || "(no email)";
+      const actionsCell = row.insertCell();
+      const editBtn = document.createElement("button");
+      editBtn.textContent="Edit";
+      editBtn.onclick=()=>openModal(doc.id,data);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.textContent="Delete";
+      deleteBtn.onclick=async()=>{
+        if(!confirm(`Delete ${data.email}?`)) return;
+        await db.collection("members").doc(doc.id).delete();
+        log(`Deleted ${data.email}`);
         loadMembers();
-      }else{
-        authStatusEl.textContent="Access denied: not admin";
-        log("Access denied.");
-      }
+      };
+      actionsCell.appendChild(editBtn);
+      actionsCell.appendChild(deleteBtn);
     });
-  </script>
+    log(`Loaded ${snapshot.size} member(s).`);
+  } catch(e){ log("❌ Error loading members: "+e.message); }
+}
+
+function openModal(docId=null,data=null){
+  editingDocId=docId;
+  document.getElementById("overlay").style.display="block";
+  const modal = document.getElementById("memberModal");
+  modal.style.display="block";
+  document.getElementById("modalTitle").textContent = docId?"Edit Member":"Add Member";
+  document.getElementById("field_uniqueID").value = data?.uniqueID || (docId?docId:"");
+  document.getElementById("field_email").value = data?.email||"";
+  document.getElementById("field_status").value = data?.status||"";
+  document.getElementById("field_testimonial").value = data?.testimonial||"";
+  document.getElementById("field_testimonialDate").value = data?.testimonialDate||"";
+  document.getElementById("field_timestamp").value = data?.timestamp||"";
+  document.getElementById("field_upgradeDate").value = data?.upgradeDate||"";
+  document.getElementById("field_upgradeLevel").value = data?.upgradeLevel||"";
+  document.getElementById("field_userID").value = data?.userID||"";
+}
+
+function closeModal(){ editingDocId=null; document.getElementById("overlay").style.display="none"; document.getElementById("memberModal").style.display="none"; }
+
+document.getElementById("commitMember").onclick=async()=>{
+  const data={
+    uniqueID: document.getElementById("field_uniqueID").value,
+    email: document.getElementById("field_email").value.trim(),
+    status: document.getElementById("field_status").value.trim(),
+    testimonial: document.getElementById("field_testimonial").value.trim(),
+    testimonialDate: document.getElementById("field_testimonialDate").value.trim(),
+    timestamp: document.getElementById("field_timestamp").value.trim(),
+    upgradeDate: document.getElementById("field_upgradeDate").value.trim(),
+    upgradeLevel: document.getElementById("field_upgradeLevel").value.trim(),
+    userID: document.getElementById("field_userID").value.trim()
+  };
+
+  // Validation
+  if(!data.email || !data.userID){ alert("Email and User ID required"); return; }
+  if(!["APPROVED","PENDING"].includes(data.status.toUpperCase())){ alert("Status must be APPROVED or PENDING"); return; }
+  if(!["ADMIN","UPGRADED","FREE","VIP"].includes(data.upgradeLevel.toUpperCase())){ alert("Upgrade Level invalid"); return; }
+  if(data.upgradeDate<data.timestamp){ alert("Upgrade Date cannot be before Timestamp"); return; }
+
+  try{
+    // Check uniqueness of email/userID for new record
+    const allMembers = await db.collection("members").get();
+    if(!editingDocId){
+      if(allMembers.docs.some(doc=>doc.data().email===data.email)){ alert("Email already exists"); return; }
+      if(allMembers.docs.some(doc=>doc.data().userID===data.userID)){ alert("User ID already exists"); return; }
+      const newDoc=db.collection("members").doc();
+      data.uniqueID=newDoc.id;
+      await newDoc.set(data);
+      log(`Added member ${data.email}`);
+    } else {
+      const docRef = db.collection("members").doc(editingDocId);
+      await docRef.set(data,{merge:true});
+      log(`Updated member ${data.email}`);
+    }
+    closeModal();
+    loadMembers();
+  } catch(e){ log("❌ Commit error: "+e.message); }
+};
+
+document.getElementById("cancelMember").onclick=closeModal;
+document.getElementById("addMember").onclick=()=>openModal(null,null);
+
+auth.onAuthStateChanged(user=>{
+  if(user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase()){
+    authStatusEl.textContent=`Authenticated as admin: ${user.email}`;
+    loadMembers();
+  } else {
+    authStatusEl.textContent="Access denied: not admin";
+    log("Access denied");
+  }
+});
+</script>
 </body>
 </html>
