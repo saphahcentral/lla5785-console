@@ -1,227 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>LLA5785 Console - Members</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; display: flex; }
-    #left { flex: 1; padding: 20px; }
-    #right { width: 360px; background: #111; color: #0f0; padding: 10px; overflow-y: auto; height: 100vh; white-space: pre-wrap; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
-    th { background: #eee; }
-    button { padding: 5px 10px; margin: 2px; }
-    #addBtn { margin-bottom: 10px; padding: 8px 16px; font-weight: bold; }
-    .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-             background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.3); max-width: 480px; z-index: 1000; overflow-y: auto; max-height: 90vh; }
-    .modal label { display: block; margin-top: 10px; font-weight: bold; }
-    .modal input, .modal select { width: 100%; padding: 6px; margin-top: 2px; }
-    .modal-buttons { margin-top: 15px; text-align: right; }
-    .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 500; }
-  </style>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-</head>
-<body>
-  <div id="left">
-    <h1>LLA5785 Console - Members</h1>
-    <button id="addBtn">➕ Add Member</button>
-    <table id="membersTable">
-      <thead>
-        <tr><th>Email</th><th>Actions</th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+<style>
+  .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+           background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.3);
+           max-width: 800px; z-index: 1000; overflow-y: auto; max-height: 90vh; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal label { display: block; font-weight: bold; margin-top: 8px; }
+  .modal input, .modal select { width: 100%; padding: 6px; margin-top: 2px; }
+  .modal-buttons { margin-top: 15px; text-align: right; grid-column: span 2; }
+</style>
 
-  <pre id="console" style="white-space: pre-wrap;">Console log:</pre>
-
-  <div class="overlay" id="overlay"></div>
-  <div class="modal" id="modal">
-    <h2 id="modalTitle">Add/Edit Member</h2>
-    <form id="memberForm">
-      <label>Email *</label><input type="email" id="email" required>
-      <label>User ID *</label><input type="text" id="userID" required>
-      <label>Status *</label>
-      <select id="status" required>
-        <option value="">Select</option>
-        <option value="PENDING">PENDING</option>
-        <option value="APPROVED">APPROVED</option>
-        <option value="ADMIN">ADMIN</option>
-      </select>
-      <label>Upgrade Level *</label>
-      <select id="upgradeLevel" required>
-        <option value="">Select</option>
-        <option value="FREE">FREE</option>
-        <option value="UPGRADED">UPGRADED</option>
-        <option value="VIP">VIP</option>
-        <option value="ADMIN">ADMIN</option>
-      </select>
-      <label>Timestamp (YYYY-MM-DD)</label><input type="text" id="timestamp">
-      <label>Upgrade Date (YYYY-MM-DD)</label><input type="text" id="upgradeDate">
-      <label>Testimonial</label><input type="text" id="testimonial">
-      <label>Testimonial Date</label><input type="text" id="testimonialDate">
-      <label>First Name *</label><input type="text" id="firstName" required>
-      <label>Last Name *</label><input type="text" id="lastName" required>
-      <label>Business Name *</label><input type="text" id="businessName" required>
-      <label>Phone Number *</label><input type="text" id="phoneNumber" required>
-      <label>Business Address *</label><input type="text" id="businessAddress" required>
-      <label>Referrer</label><input type="text" id="referrer">
-      <div class="modal-buttons">
-        <button type="submit" id="commitBtn">Commit</button>
-        <button type="button" id="cancelBtn">Cancel</button>
+<div class="modal" id="modal">
+  <h2 id="modalTitle">Add/Edit Member</h2>
+  <form id="memberForm">
+    <div class="modal-grid">
+      <div>
+        <label>Email *</label><input type="email" id="email" required>
+        <label>User ID *</label><input type="text" id="userID" required>
+        <label>Status *</label>
+        <select id="status" required>
+          <option value="">Select</option>
+          <option value="PENDING">PENDING</option>
+          <option value="APPROVED">APPROVED</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+        <label>Upgrade Level *</label>
+        <select id="upgradeLevel" required>
+          <option value="">Select</option>
+          <option value="FREE">FREE</option>
+          <option value="UPGRADED">UPGRADED</option>
+          <option value="VIP">VIP</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+        <label>Timestamp (YYYY-MM-DD)</label><input type="text" id="timestamp">
+        <label>Upgrade Date (YYYY-MM-DD)</label><input type="text" id="upgradeDate">
+        <label>Testimonial</label><input type="text" id="testimonial">
+        <label>Testimonial Date</label><input type="text" id="testimonialDate">
       </div>
-    </form>
-  </div>
-
-<script>
-  const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
-  const firebaseConfig = {
-    apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
-    authDomain: "lla5785v3-0.firebaseapp.com",
-    projectId: "lla5785v3-0"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-  const auth = firebase.auth();
-  const consoleEl = document.getElementById("console");
-
-  function log(msg){
-    const ts = new Date().toISOString();
-    consoleEl.textContent += `[${ts}] ${msg}\n`;
-    consoleEl.scrollTop = consoleEl.scrollHeight;
-    console.log(msg);
-  }
-
-  let currentEditId = null;
-
-  const overlay = document.getElementById("overlay");
-  const modal = document.getElementById("modal");
-  const form = document.getElementById("memberForm");
-
-  function openModal(editId=null,data=null){
-    currentEditId = editId;
-    modal.style.display = "block";
-    overlay.style.display = "block";
-    document.getElementById("modalTitle").textContent = editId?"Edit Member":"Add Member";
-    const fields = ["email","userID","status","upgradeLevel","timestamp","upgradeDate","testimonial","testimonialDate","firstName","lastName","businessName","phoneNumber","businessAddress","referrer"];
-    fields.forEach(f=>{
-      document.getElementById(f).value = data?data[f]||"":"";
-    });
-  }
-
-  function closeModal(){
-    modal.style.display = "none";
-    overlay.style.display = "none";
-    form.reset();
-  }
-
-  document.getElementById("cancelBtn").addEventListener("click",closeModal);
-  document.getElementById("addBtn").addEventListener("click",()=>openModal());
-
-  async function loadMembers(){
-    const tbody = document.querySelector("#membersTable tbody");
-    tbody.innerHTML = "";
-    const snapshot = await db.collection("members").get();
-    snapshot.forEach(doc=>{
-      const data = doc.data();
-      const row = tbody.insertRow();
-      row.insertCell().textContent = data.email || "";
-      const actions = row.insertCell();
-      const editBtn = document.createElement("button");
-      editBtn.textContent = "Edit";
-      editBtn.onclick = ()=>openModal(doc.id,data);
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "Delete";
-      delBtn.onclick = async ()=>{
-        if(confirm(`Delete ${data.email}?`)){
-          await db.collection("members").doc(doc.id).delete();
-          log(`Deleted: ${data.email}`);
-          loadMembers();
-        }
-      };
-      actions.appendChild(editBtn);
-      actions.appendChild(delBtn);
-    });
-    log(`Loaded ${snapshot.size} members`);
-  }
-
-  async function commitMember(e){
-    e.preventDefault();
-    const email = document.getElementById("email").value.trim();
-    const userID = document.getElementById("userID").value.trim();
-    const status = document.getElementById("status").value;
-    const upgradeLevel = document.getElementById("upgradeLevel").value;
-    const timestamp = document.getElementById("timestamp").value || new Date().toISOString().split("T")[0];
-    const upgradeDate = document.getElementById("upgradeDate").value || new Date().toISOString().split("T")[0];
-    const testimonial = document.getElementById("testimonial").value;
-    const testimonialDate = document.getElementById("testimonialDate").value;
-    const firstName = document.getElementById("firstName").value.trim();
-    const lastName = document.getElementById("lastName").value.trim();
-    const businessName = document.getElementById("businessName").value.trim();
-    const phoneNumber = document.getElementById("phoneNumber").value.trim();
-    const businessAddress = document.getElementById("businessAddress").value.trim();
-    const referrer = document.getElementById("referrer").value.trim();
-
-    // Validation
-    if(!email || !userID || !firstName || !lastName || !businessName || !phoneNumber || !businessAddress){
-      alert("Required fields missing!");
-      return;
-    }
-    if(!["PENDING","APPROVED","ADMIN"].includes(status)){
-      alert("Invalid status");
-      return;
-    }
-    if(!["FREE","UPGRADED","VIP","ADMIN"].includes(upgradeLevel)){
-      alert("Invalid upgrade level");
-      return;
-    }
-
-    try{
-      // Check unique email and userID
-      const membersRef = db.collection("members");
-      const snapshot = await membersRef.get();
-      let emailTaken=false, userIDTaken=false;
-      snapshot.forEach(doc=>{
-        if(doc.id !== currentEditId){
-          const d = doc.data();
-          if(d.email===email) emailTaken=true;
-          if(d.userID===userID) userIDTaken=true;
-        }
-      });
-      if(emailTaken){alert("Email already exists!"); return;}
-      if(userIDTaken){alert("UserID already exists!"); return;}
-
-      const data = {email,userID,status,upgradeLevel,timestamp,upgradeDate,testimonial,testimonialDate,firstName,lastName,businessName,phoneNumber,businessAddress,referrer};
-      if(currentEditId){
-        await db.collection("members").doc(currentEditId).update(data);
-        log(`Updated member: ${email}`);
-      }else{
-        await db.collection("members").doc().set(data);
-        log(`Added new member: ${email}`);
-      }
-      closeModal();
-      loadMembers();
-    }catch(err){
-      log("Error: "+err.message);
-      alert("Error: "+err.message);
-    }
-  }
-
-  form.addEventListener("submit",commitMember);
-
-  auth.onAuthStateChanged(user=>{
-    if(user && user.email===ADMIN_EMAIL){
-      log(`Authenticated as admin: ${user.email}`);
-      loadMembers();
-    }else{
-      log("Access denied: not admin");
-      alert("Access denied!");
-      window.location.href="index.html";
-    }
-  });
-</script>
-</body>
-</html>
+      <div>
+        <label>First Name *</label><input type="text" id="firstName" required>
+        <label>Last Name *</label><input type="text" id="lastName" required>
+        <label>Business Name *</label><input type="text" id="businessName" required>
+        <label>Phone Number *</label><input type="text" id="phoneNumber" required>
+        <label>Business Address *</label><input type="text" id="businessAddress" required>
+        <label>Referrer</label><input type="text" id="referrer">
+      </div>
+    </div>
+    <div class="modal-buttons">
+      <button type="submit" id="commitBtn">Commit</button>
+      <button type="button" id="cancelBtn">Cancel</button>
+    </div>
+  </form>
+</div>
