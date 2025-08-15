@@ -2,93 +2,103 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>LLA5785 Members Console</title>
+<title>LLA5785 Console - Members</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 20px; display: flex; }
-  .container { flex: 1; max-width: 800px; }
-  h1 { color: #003366; }
+  body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; display: flex; }
+  .table-container { flex: 1; margin-right: 20px; }
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
   th { background-color: #eee; }
-  button { padding: 6px 12px; margin: 2px; }
-  #console { width: 300px; margin-left: 20px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; overflow-y: auto; border-radius: 4px; max-height: 90vh; }
-  #authStatus { font-weight: bold; margin-top: 8px; }
-  /* Modal styles */
-  .modal { display: none; position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background: rgba(0,0,0,0.5); }
-  .modal-content { background: #fff; margin: 50px auto; padding: 20px; border-radius: 8px; max-width: 800px; max-height: 80vh; overflow-y: auto; display: flex; flex-wrap: wrap; }
-  .modal-column { flex: 1 1 50%; box-sizing: border-box; padding: 5px; }
-  .modal-column label { display: block; margin-top: 10px; font-weight: bold; }
-  .modal-column input { width: 95%; padding: 5px; margin-top: 2px; }
-  .modal-buttons { text-align: right; width: 100%; margin-top: 15px; }
+  button { padding: 5px 10px; margin-right: 5px; }
+  #console { width: 300px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: 90vh; overflow-y: auto; border-radius: 4px;}
+  #authStatus { font-weight: bold; margin-bottom: 10px; }
+  /* Modal */
+  .modal { display: none; position: fixed; z-index: 1000; left:0; top:0; width:100%; height:100%; overflow:auto; background: rgba(0,0,0,0.5); }
+  .modal-content { background: #fff; margin: 50px auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 800px; max-height: 80vh; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .modal-content label { display: block; margin-bottom: 3px; font-weight: bold; }
+  .modal-content input, .modal-content textarea { width: 100%; padding: 6px; box-sizing: border-box; }
+  .modal-header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
+  .modal-footer { grid-column: 1 / -1; text-align: right; margin-top: 10px; }
 </style>
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>LLA5785 Members Console</h1>
-    <div id="authStatus">Checking authentication...</div>
-    <button id="addMemberBtn">➕ Add Member</button>
+<div class="table-container">
+  <h1>LLA5785 Console - Members</h1>
+  <div id="authStatus">Checking authentication...</div>
+  <button id="addMemberBtn">➕ Add Member</button>
+  <table id="membersTable">
+    <thead>
+      <tr>
+        <th>Email</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
 
-    <table id="membersTable">
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+<pre id="console">Console log:</pre>
 
-  <pre id="console">Console log:</pre>
-
-  <!-- Modal -->
-  <div id="memberModal" class="modal">
-    <div class="modal-content">
-      <!-- Left column -->
-      <div class="modal-column">
-        <label>Email</label><input type="text" id="email">
-        <label>Status</label><input type="text" id="status">
-        <label>Upgrade Level</label><input type="text" id="upgradeLevel">
-        <label>Upgrade Date</label><input type="text" id="upgradeDate">
-        <label>Timestamp</label><input type="text" id="timestamp">
-        <label>UserID</label><input type="text" id="userID">
-      </div>
-      <!-- Right column -->
-      <div class="modal-column">
-        <label>First Name</label><input type="text" id="firstName">
-        <label>Last Name</label><input type="text" id="lastName">
-        <label>Business Name</label><input type="text" id="businessName">
-        <label>Phone Number</label><input type="text" id="phoneNumber">
-        <label>Business Address</label><input type="text" id="businessAddress">
-        <label>Referrer</label><input type="text" id="referrer">
-        <label>Testimonial</label><input type="text" id="testimonial">
-        <label>Testimonial Date</label><input type="text" id="testimonialDate">
-      </div>
-      <div class="modal-buttons">
-        <button id="commitBtn">💾 Commit</button>
-        <button id="cancelBtn">✖ Cancel</button>
-      </div>
+<!-- Modal -->
+<div id="memberModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalTitle">Add/Edit Member</h2>
+      <button id="closeModalBtn">X</button>
+    </div>
+    <label>Email</label><input type="email" id="email" />
+    <label>Status</label>
+    <select id="status">
+      <option value="APPROVED">APPROVED</option>
+      <option value="PENDING">PENDING</option>
+      <option value="ADMIN">ADMIN</option>
+    </select>
+    <label>Upgrade Level</label>
+    <select id="upgradeLevel">
+      <option value="ADMIN">ADMIN</option>
+      <option value="UPGRADED">UPGRADED</option>
+      <option value="FREE">FREE</option>
+      <option value="VIP">VIP</option>
+    </select>
+    <label>Upgrade Date</label><input type="text" id="upgradeDate" placeholder="YYYY-MM-DD" />
+    <label>Timestamp</label><input type="text" id="timestamp" placeholder="YYYY-MM-DD" />
+    <label>UserID</label><input type="text" id="userID" />
+    <label>First Name</label><input type="text" id="FirstName" />
+    <label>Last Name</label><input type="text" id="LastName" />
+    <label>Business Name</label><input type="text" id="BusinessName" />
+    <label>Phone Number</label><input type="text" id="PhoneNumber" />
+    <label>Business Address</label><input type="text" id="BusinessAddress" />
+    <label>Referrer</label><input type="text" id="Referrer" />
+    <label>Testimonial</label><textarea id="Testimonial"></textarea>
+    <label>Testimonial Date</label><input type="text" id="TestimonialDate" placeholder="YYYY-MM-DD" />
+    <div class="modal-footer">
+      <button id="commitBtn">Commit</button>
     </div>
   </div>
+</div>
 
 <script>
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+
 const firebaseConfig = {
   apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
   authDomain: "lla5785v3-0.firebaseapp.com",
-  projectId: "lla5785v3-0"
+  projectId: "lla5785v3-0",
+  storageBucket: "lla5785v3-0.firebasestorage.app",
+  messagingSenderId: "730972554331",
+  appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+
 const logEl = document.getElementById("console");
 const authStatusEl = document.getElementById("authStatus");
-
 function log(msg) {
   const ts = new Date().toISOString();
   logEl.textContent += `\n[${ts}] ${msg}`;
@@ -96,7 +106,28 @@ function log(msg) {
   console.log(msg);
 }
 
-let currentDocId = null;
+// Modal elements
+const modal = document.getElementById("memberModal");
+const closeModalBtn = document.getElementById("closeModalBtn");
+const commitBtn = document.getElementById("commitBtn");
+const addMemberBtn = document.getElementById("addMemberBtn");
+
+let editingDocId = null;
+
+function openModal(member={}) {
+  editingDocId = member.id || null;
+  document.getElementById("modalTitle").textContent = editingDocId ? "Edit Member" : "Add Member";
+  const fields = ["email","status","upgradeLevel","upgradeDate","timestamp","userID","FirstName","LastName","BusinessName","PhoneNumber","BusinessAddress","Referrer","Testimonial","TestimonialDate"];
+  fields.forEach(f => {
+    document.getElementById(f).value = member[f] || "";
+  });
+  modal.style.display = "block";
+}
+
+closeModalBtn.onclick = () => modal.style.display = "none";
+window.onclick = e => { if(e.target==modal) modal.style.display="none"; }
+
+addMemberBtn.onclick = () => openModal();
 
 async function loadMembers() {
   const tbody = document.querySelector("#membersTable tbody");
@@ -104,90 +135,84 @@ async function loadMembers() {
   try {
     const snapshot = await db.collection("members").get();
     if (snapshot.empty) { log("⚠️ No members found."); return; }
+    log(`🔍 Found ${snapshot.size} member(s).`);
     snapshot.forEach(doc => {
-      const data = doc.data();
+      const data = doc.data() || {};
       const row = tbody.insertRow();
-      row.insertCell().textContent = data.email || "(no email)";
+      row.insertCell().textContent = data.email || "";
       const actionsCell = row.insertCell();
-
       const editBtn = document.createElement("button");
       editBtn.textContent = "Edit";
-      editBtn.onclick = () => openModal(doc.id, data);
-      actionsCell.appendChild(editBtn);
-
+      editBtn.onclick = () => openModal({id: doc.id, ...data});
       const deleteBtn = document.createElement("button");
       deleteBtn.textContent = "Delete";
       deleteBtn.onclick = async () => {
         if(!confirm(`Delete ${data.email}?`)) return;
         try {
           await db.collection("members").doc(doc.id).delete();
-          log(`Deleted: ${data.email}`);
-          await loadMembers();
-        } catch(e) { log("Delete error: " + e.message); }
+          log(`Deleted ${data.email}`);
+          loadMembers();
+        } catch(err) { log("Delete error: "+err.message); }
       };
+      actionsCell.appendChild(editBtn);
       actionsCell.appendChild(deleteBtn);
     });
-    log(`✅ Members loaded: ${snapshot.size}`);
-  } catch(e) { log("Error loading members: " + e.message); }
-}
-
-function openModal(docId=null, data={}) {
-  currentDocId = docId;
-  const fields = ["email","status","upgradeLevel","upgradeDate","timestamp","userID","firstName","lastName","businessName","phoneNumber","businessAddress","referrer","testimonial","testimonialDate"];
-  fields.forEach(f => document.getElementById(f).value = data[f] || "");
-  document.getElementById("memberModal").style.display = "block";
-}
-
-document.getElementById("addMemberBtn").addEventListener("click", () => openModal());
-
-document.getElementById("cancelBtn").addEventListener("click", () => {
-  document.getElementById("memberModal").style.display = "none";
-});
-
-document.getElementById("commitBtn").addEventListener("click", async () => {
-  const memberData = {};
-  const fields = ["email","status","upgradeLevel","upgradeDate","timestamp","userID","firstName","lastName","businessName","phoneNumber","businessAddress","referrer","testimonial","testimonialDate"];
-  fields.forEach(f => memberData[f] = document.getElementById(f).value.trim());
-
-  // Validation
-  if(!memberData.email || !memberData.userID || !memberData.firstName || !memberData.lastName || !memberData.businessAddress) {
-    alert("Email, UserID, First Name, Last Name and Business Address are required.");
-    return;
-  }
-  if(!["APPROVED","PENDING","ADMIN"].includes(memberData.status.toUpperCase())) {
-    alert("Status must be APPROVED, PENDING or ADMIN.");
-    return;
-  }
-  if(!["ADMIN","UPGRADED","FREE","VIP"].includes(memberData.upgradeLevel.toUpperCase())) {
-    alert("Upgrade Level must be ADMIN, UPGRADED, FREE, or VIP.");
-    return;
-  }
-  // Add/Update
-  try {
-    if(currentDocId) {
-      await db.collection("members").doc(currentDocId).update(memberData);
-      log(`Updated: ${memberData.email}`);
-    } else {
-      const newDoc = await db.collection("members").add(memberData);
-      log(`Added: ${memberData.email} (ID: ${newDoc.id})`);
-    }
-    document.getElementById("memberModal").style.display = "none";
-    await loadMembers();
   } catch(e) {
-    log("Commit error: " + e.message);
+    log("Load error: "+e.message);
   }
-});
+}
+
+commitBtn.onclick = async () => {
+  try {
+    const memberData = {
+      email: document.getElementById("email").value.trim(),
+      status: document.getElementById("status").value,
+      upgradeLevel: document.getElementById("upgradeLevel").value,
+      upgradeDate: document.getElementById("upgradeDate").value,
+      timestamp: document.getElementById("timestamp").value,
+      userID: document.getElementById("userID").value.trim(),
+      FirstName: document.getElementById("FirstName").value,
+      LastName: document.getElementById("LastName").value,
+      BusinessName: document.getElementById("BusinessName").value,
+      PhoneNumber: document.getElementById("PhoneNumber").value,
+      BusinessAddress: document.getElementById("BusinessAddress").value,
+      Referrer: document.getElementById("Referrer").value,
+      Testimonial: document.getElementById("Testimonial").value,
+      TestimonialDate: document.getElementById("TestimonialDate").value
+    };
+    // Validation
+    if(!memberData.email || !memberData.FirstName || !memberData.LastName || !memberData.BusinessAddress || !memberData.userID){
+      alert("Email, First/Last Name, Business Address, and UserID are required.");
+      return;
+    }
+    // Add / Edit
+    if(editingDocId){
+      await db.collection("members").doc(editingDocId).update(memberData);
+      log(`Updated ${memberData.email}`);
+    } else {
+      await db.collection("members").add(memberData);
+      log(`Added ${memberData.email}`);
+    }
+    modal.style.display="none";
+    loadMembers();
+  } catch(e){
+    log("Commit error: "+e.message);
+  }
+}
 
 // Auth
-auth.onAuthStateChanged(async (user) => {
-  if(user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase()) {
-    authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
-    await loadMembers();
+auth.onAuthStateChanged(user => {
+  log("Auth state changed: "+(user? user.email : "signed out"));
+  if(user && user.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
+    authStatusEl.textContent = "Authenticated as admin: "+user.email;
+    loadMembers();
   } else {
-    authStatusEl.textContent = "Access denied: not admin.";
-    log("Access denied.");
+    authStatusEl.textContent = "Access denied";
+    log("Access denied: non-admin or not signed in.");
   }
 });
+
+window.addEventListener('error', ev => { log('Window error: '+ev.message); });
 </script>
 </body>
 </html>
