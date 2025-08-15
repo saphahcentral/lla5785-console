@@ -46,7 +46,6 @@ button { padding:4px 8px; margin-right:4px; }
 <label>Status<input type="text" id="field_status"></label>
 <label>Testimonial<input type="text" id="field_testimonial"></label>
 <label>Testimonial Date<input type="text" id="field_testimonialDate"></label>
-<label>Timestamp<input type="text" id="field_timestamp"></label>
 <label>Upgrade Date<input type="text" id="field_upgradeDate"></label>
 <label>Upgrade Level<input type="text" id="field_upgradeLevel"></label>
 <label>User ID<input type="text" id="field_userID"></label>
@@ -68,6 +67,7 @@ const logEl = document.getElementById("console");
 const authStatusEl = document.getElementById("authStatus");
 const tableBody = document.querySelector("#membersTable tbody");
 let editingDocId = null;
+let internalTimestamp = null;
 
 function log(msg){
   const ts = new Date().toISOString();
@@ -114,41 +114,41 @@ function openModal(docId=null,data=null){
   document.getElementById("field_status").value = data?.status||"";
   document.getElementById("field_testimonial").value = data?.testimonial||"";
   document.getElementById("field_testimonialDate").value = data?.testimonialDate||"";
-  document.getElementById("field_timestamp").value = data?.timestamp||"";
   document.getElementById("field_upgradeDate").value = data?.upgradeDate||"";
   document.getElementById("field_upgradeLevel").value = data?.upgradeLevel||"";
   document.getElementById("field_userID").value = data?.userID||"";
+  internalTimestamp = data?.timestamp || new Date().toISOString();
 }
 
-function closeModal(){ editingDocId=null; document.getElementById("overlay").style.display="none"; document.getElementById("memberModal").style.display="none"; }
+function closeModal(){ editingDocId=null; internalTimestamp=null; document.getElementById("overlay").style.display="none"; document.getElementById("memberModal").style.display="none"; }
 
 document.getElementById("commitMember").onclick=async()=>{
   const data={
     uniqueID: document.getElementById("field_uniqueID").value,
     email: document.getElementById("field_email").value.trim(),
-    status: document.getElementById("field_status").value.trim(),
+    status: document.getElementById("field_status").value.trim().toUpperCase(),
     testimonial: document.getElementById("field_testimonial").value.trim(),
     testimonialDate: document.getElementById("field_testimonialDate").value.trim(),
-    timestamp: document.getElementById("field_timestamp").value.trim(),
+    timestamp: internalTimestamp,
     upgradeDate: document.getElementById("field_upgradeDate").value.trim(),
-    upgradeLevel: document.getElementById("field_upgradeLevel").value.trim(),
+    upgradeLevel: document.getElementById("field_upgradeLevel").value.trim().toUpperCase(),
     userID: document.getElementById("field_userID").value.trim()
   };
 
   // Validation
   if(!data.email || !data.userID){ alert("Email and User ID required"); return; }
-  if(!["APPROVED","PENDING"].includes(data.status.toUpperCase())){ alert("Status must be APPROVED or PENDING"); return; }
-  if(!["ADMIN","UPGRADED","FREE","VIP"].includes(data.upgradeLevel.toUpperCase())){ alert("Upgrade Level invalid"); return; }
-  if(data.upgradeDate<data.timestamp){ alert("Upgrade Date cannot be before Timestamp"); return; }
+  if(!["APPROVED","PENDING"].includes(data.status)){ alert("Status must be APPROVED or PENDING"); return; }
+  if(!["ADMIN","UPGRADED","FREE","VIP"].includes(data.upgradeLevel)){ alert("Upgrade Level invalid"); return; }
+  if(data.upgradeDate<data.timestamp){ alert("Upgrade Date cannot be before creation date"); return; }
 
   try{
-    // Check uniqueness of email/userID for new record
     const allMembers = await db.collection("members").get();
     if(!editingDocId){
       if(allMembers.docs.some(doc=>doc.data().email===data.email)){ alert("Email already exists"); return; }
       if(allMembers.docs.some(doc=>doc.data().userID===data.userID)){ alert("User ID already exists"); return; }
       const newDoc=db.collection("members").doc();
       data.uniqueID=newDoc.id;
+      data.timestamp = new Date().toISOString();
       await newDoc.set(data);
       log(`Added member ${data.email}`);
     } else {
