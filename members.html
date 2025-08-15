@@ -10,14 +10,14 @@
   table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
   th { background-color: #eee; }
-  button { padding: 5px 10px; margin-right: 5px; }
+  button { padding: 5px 10px; margin-right: 5px; cursor: pointer; }
   #console { width: 300px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: 90vh; overflow-y: auto; border-radius: 4px;}
   #authStatus { font-weight: bold; margin-bottom: 10px; }
   /* Modal */
   .modal { display: none; position: fixed; z-index: 1000; left:0; top:0; width:100%; height:100%; overflow:auto; background: rgba(0,0,0,0.5); }
   .modal-content { background: #fff; margin: 50px auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 800px; max-height: 80vh; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
   .modal-content label { display: block; margin-bottom: 3px; font-weight: bold; }
-  .modal-content input, .modal-content textarea { width: 100%; padding: 6px; box-sizing: border-box; }
+  .modal-content input, .modal-content textarea, .modal-content select { width: 100%; padding: 6px; box-sizing: border-box; }
   .modal-header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
   .modal-footer { grid-column: 1 / -1; text-align: right; margin-top: 10px; }
 </style>
@@ -34,6 +34,12 @@
     <thead>
       <tr>
         <th>Email</th>
+        <th>First Name</th>
+        <th>Last Name</th>
+        <th>Business Name</th>
+        <th>Phone Number</th>
+        <th>Business Address</th>
+        <th>Referrer</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -140,6 +146,12 @@ async function loadMembers() {
       const data = doc.data() || {};
       const row = tbody.insertRow();
       row.insertCell().textContent = data.email || "";
+      row.insertCell().textContent = data.FirstName || "";
+      row.insertCell().textContent = data.LastName || "";
+      row.insertCell().textContent = data.BusinessName || "";
+      row.insertCell().textContent = data.PhoneNumber || "";
+      row.insertCell().textContent = data.BusinessAddress || "";
+      row.insertCell().textContent = data.Referrer || "";
       const actionsCell = row.insertCell();
       const editBtn = document.createElement("button");
       editBtn.textContent = "Edit";
@@ -180,12 +192,10 @@ commitBtn.onclick = async () => {
       Testimonial: document.getElementById("Testimonial").value,
       TestimonialDate: document.getElementById("TestimonialDate").value
     };
-    // Validation
     if(!memberData.email || !memberData.FirstName || !memberData.LastName || !memberData.BusinessAddress || !memberData.userID){
       alert("Email, First/Last Name, Business Address, and UserID are required.");
       return;
     }
-    // Add / Edit
     if(editingDocId){
       await db.collection("members").doc(editingDocId).update(memberData);
       log(`Updated ${memberData.email}`);
