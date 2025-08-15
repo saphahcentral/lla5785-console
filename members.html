@@ -1,143 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>LLA5785 Members Admin</title>
+<meta charset="UTF-8">
+<title>Members Management</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #eef6ff;
-    margin: 0;
-    padding: 10px;
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-    color: #003366;
-  }
-  .left-panel {
-    flex: 0 0 320px;
-    padding: 10px;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .right-panel {
-    flex: 1;
-    margin-left: 10px;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    overflow: auto;
-    padding: 10px;
-  }
-  h1 {
-    font-size: 1.3em;
-    text-align: center;
-    color: #004080;
-    margin-bottom: 10px;
-  }
-  button {
-    padding: 10px;
-    background-color: #0066cc;
-    color: white;
-    font-size: 1em;
-    font-weight: bold;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-  }
-  button:hover { background-color: #004d99; }
-  button.delete { background-color: #cc0000; }
-  button.delete:hover { background-color: #990000; }
-  label {
-    font-weight: bold;
-    margin-top: 5px;
-  }
-  input, select {
-    padding: 8px;
-    width: 100%;
-    margin-bottom: 5px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
-  }
-  th, td {
-    border: 1px solid #ccc;
-    padding: 6px;
-    text-align: left;
-  }
-  th {
-    background: #cce0ff;
-  }
+  body { font-family: Arial, sans-serif; margin: 0; background: #eef6ff; }
+  header { padding: 10px; background: #004080; color: white; }
+  .container { display: flex; gap: 20px; padding: 20px; }
+  .table-container { flex: 3; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.2);}
+  .console-container { flex: 1; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+  button { padding: 6px 12px; margin: 2px; cursor: pointer; border: none; border-radius: 4px; }
+  .add-btn { background: #28a745; color: white; margin-bottom: 10px; }
+  .edit-btn { background: #ffc107; }
+  .delete-btn { background: #dc3545; color: white; }
+  /* Modal Styles */
+  .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+           background: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+  .modal-content { background: white; padding: 20px; border-radius: 8px; width: 400px; max-width: 90%; }
+  .modal-content input, .modal-content select { width: 100%; padding: 8px; margin: 6px 0; }
+  .modal-content .close { float: right; cursor: pointer; }
 </style>
 </head>
 <body>
 
-<div class="left-panel">
-  <h1>Members Console</h1>
-  <button id="addBtn">➕ Add Member</button>
-  <button id="editBtn">✏️ Edit Selected</button>
-  <button id="deleteBtn" class="delete">🗑 Delete Selected</button>
+<header>
+  <h1>Members Management</h1>
+</header>
 
-  <form id="memberForm" style="display:none;">
-    <h2 id="formTitle">Add Member</h2>
-    <label>Email</label>
-    <input type="email" id="email" required />
-    <label>User ID</label>
-    <input type="text" id="userID" required />
-    <label>Name</label>
-    <input type="text" id="name" required />
-    <label>Address</label>
-    <input type="text" id="address" required />
-    <label>Status</label>
-    <select id="status" required>
-      <option value="APPROVED">APPROVED</option>
-      <option value="PENDING">PENDING</option>
-    </select>
-    <label>Upgrade Level</label>
-    <select id="upgradeLevel" required>
-      <option value="ADMIN">ADMIN</option>
-      <option value="UPGRADED">UPGRADED</option>
-      <option value="FREE">FREE</option>
-      <option value="VIP">VIP</option>
-    </select>
-    <label>Date Stamp</label>
-    <input type="date" id="dateStamp" />
-    <label>Upgrade Date</label>
-    <input type="date" id="upgradeDate" />
-    <button type="submit">✅ Commit</button>
-    <button type="button" id="cancelBtn">❌ Cancel</button>
-  </form>
+<div class="container">
+  <!-- Main Table -->
+  <div class="table-container">
+    <button id="addMember" class="add-btn">➕ Add Member</button>
+    <table id="membersTable">
+      <thead>
+        <tr><th>Email Address</th><th>Actions</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Console -->
+  <div class="console-container">
+    <h3>Console</h3>
+    <pre id="consoleLog"></pre>
+  </div>
 </div>
 
-<div class="right-panel">
-  <table id="membersTable">
-    <thead>
-      <tr>
-        <th></th>
-        <th>Email</th>
-        <th>User ID</th>
-        <th>Name</th>
-        <th>Address</th>
-        <th>Status</th>
-        <th>Upgrade Level</th>
-        <th>Date Stamp</th>
-        <th>Upgrade Date</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<!-- Modal Form -->
+<div id="memberModal" class="modal">
+  <div class="modal-content">
+    <span id="closeModal" class="close">✖</span>
+    <h3 id="modalTitle">Add Member</h3>
+    <form id="memberForm">
+      <input type="hidden" id="recordId">
+      <label>Email:</label>
+      <input type="email" id="email" required>
+      <label>User ID:</label>
+      <input type="text" id="userId" required>
+      <label>Name:</label>
+      <input type="text" id="name" required>
+      <label>Address:</label>
+      <input type="text" id="address" required>
+      <label>Status:</label>
+      <select id="status" required>
+        <option value="PENDING">PENDING</option>
+        <option value="APPROVED">APPROVED</option>
+      </select>
+      <label>Upgrade Level:</label>
+      <select id="upgradeLevel" required>
+        <option value="FREE">FREE</option>
+        <option value="VIP">VIP</option>
+        <option value="UPGRADED">UPGRADED</option>
+        <option value="ADMIN">ADMIN</option>
+      </select>
+      <label>Date Stamp:</label>
+      <input type="date" id="dateStamp" required>
+      <label>Upgrade Date:</label>
+      <input type="date" id="upgradeDate" required>
+      <button type="submit" class="add-btn">✅ Commit</button>
+    </form>
+  </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
@@ -148,123 +98,105 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const membersTable = document.querySelector("#membersTable tbody");
-const addBtn = document.getElementById("addBtn");
-const editBtn = document.getElementById("editBtn");
-const deleteBtn = document.getElementById("deleteBtn");
-const form = document.getElementById("memberForm");
-const cancelBtn = document.getElementById("cancelBtn");
-let editMode = false;
-let selectedDocId = null;
-let membersData = [];
+const consoleLog = document.getElementById("consoleLog");
+const memberModal = document.getElementById("memberModal");
+const closeModal = document.getElementById("closeModal");
+const memberForm = document.getElementById("memberForm");
+const modalTitle = document.getElementById("modalTitle");
 
-function renderTable(data) {
-  membersTable.innerHTML = "";
-  data.forEach((m, index) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><input type="radio" name="selectMember" value="${index}"></td>
-      <td>${m.email}</td>
-      <td>${m.userID}</td>
-      <td>${m.name}</td>
-      <td>${m.address}</td>
-      <td>${m.status}</td>
-      <td>${m.upgradeLevel}</td>
-      <td>${m.dateStamp}</td>
-      <td>${m.upgradeDate}</td>
-    `;
-    membersTable.appendChild(row);
-  });
+let editingId = null;
+
+function log(msg) {
+  consoleLog.textContent += msg + "\n";
 }
 
+// Load members
 async function loadMembers() {
-  membersData = [];
+  membersTable.innerHTML = "";
   const snapshot = await getDocs(collection(db, "members"));
   snapshot.forEach(docSnap => {
-    membersData.push({ id: docSnap.id, ...docSnap.data() });
+    const data = docSnap.data();
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${data.email || ""}</td>
+      <td>
+        <button class="edit-btn" data-id="${docSnap.id}">✏️</button>
+        <button class="delete-btn" data-id="${docSnap.id}">🗑️</button>
+      </td>
+    `;
+    membersTable.appendChild(tr);
   });
-  renderTable(membersData);
 }
-
-function resetForm() {
-  form.reset();
-  form.style.display = "none";
-  editMode = false;
-  selectedDocId = null;
-}
-
-addBtn.addEventListener("click", () => {
-  form.style.display = "block";
-  document.getElementById("formTitle").textContent = "Add Member";
-  editMode = false;
-});
-
-editBtn.addEventListener("click", () => {
-  const selected = document.querySelector("input[name='selectMember']:checked");
-  if (!selected) return alert("Select a member to edit.");
-  const member = membersData[selected.value];
-  form.style.display = "block";
-  document.getElementById("formTitle").textContent = "Edit Member";
-  editMode = true;
-  selectedDocId = member.id;
-  document.getElementById("email").value = member.email;
-  document.getElementById("userID").value = member.userID;
-  document.getElementById("name").value = member.name;
-  document.getElementById("address").value = member.address;
-  document.getElementById("status").value = member.status;
-  document.getElementById("upgradeLevel").value = member.upgradeLevel;
-  document.getElementById("dateStamp").value = member.dateStamp || "";
-  document.getElementById("upgradeDate").value = member.upgradeDate || "";
-});
-
-deleteBtn.addEventListener("click", async () => {
-  const selected = document.querySelector("input[name='selectMember']:checked");
-  if (!selected) return alert("Select a member to delete.");
-  if (!confirm("Are you sure?")) return;
-  await deleteDoc(doc(db, "members", membersData[selected.value].id));
-  loadMembers();
-});
-
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = document.getElementById("email").value.trim().toLowerCase();
-  const userID = document.getElementById("userID").value.trim();
-  const name = document.getElementById("name").value.trim();
-  const address = document.getElementById("address").value.trim();
-  const status = document.getElementById("status").value;
-  const upgradeLevel = document.getElementById("upgradeLevel").value;
-  let dateStamp = document.getElementById("dateStamp").value;
-  let upgradeDate = document.getElementById("upgradeDate").value;
-
-  // Validation
-  if (!email.endsWith("@gmail.com")) return alert("Email must be a Gmail address.");
-  if (!name || !address) return alert("Name and address are required.");
-  if (status !== "APPROVED" && status !== "PENDING") return alert("Invalid status.");
-  if (!["ADMIN","UPGRADED","FREE","VIP"].includes(upgradeLevel)) return alert("Invalid upgrade level.");
-  if (!dateStamp) dateStamp = new Date().toISOString().slice(0,10);
-  if (upgradeDate && upgradeDate <= dateStamp) return alert("Upgrade date must be after creation date.");
-
-  // Unique checks
-  const emailExists = membersData.some(m => m.email === email && (!editMode || m.id !== selectedDocId));
-  if (emailExists) return alert("Email already exists.");
-  const userIDExists = membersData.some(m => m.userID === userID && (!editMode || m.id !== selectedDocId));
-  if (userIDExists) return alert("User ID already exists.");
-
-  const newData = { email, userID, name, address, status, upgradeLevel, dateStamp, upgradeDate };
-
-  if (editMode) {
-    await setDoc(doc(db, "members", selectedDocId), newData);
-  } else {
-    await setDoc(doc(db, "members", userID), newData);
-  }
-  resetForm();
-  loadMembers();
-});
-
-cancelBtn.addEventListener("click", resetForm);
-
-// Initial load
 loadMembers();
-</script>
 
+// Open modal
+document.getElementById("addMember").addEventListener("click", () => {
+  editingId = null;
+  modalTitle.textContent = "Add Member";
+  memberForm.reset();
+  document.getElementById("dateStamp").value = new Date().toISOString().split("T")[0];
+  memberModal.style.display = "flex";
+});
+
+membersTable.addEventListener("click", async (e) => {
+  if (e.target.classList.contains("edit-btn")) {
+    editingId = e.target.dataset.id;
+    const docSnap = await getDocs(query(collection(db, "members"), where("__name__", "==", editingId)));
+    docSnap.forEach(d => {
+      const m = d.data();
+      document.getElementById("email").value = m.email;
+      document.getElementById("userId").value = m.userId;
+      document.getElementById("name").value = m.name;
+      document.getElementById("address").value = m.address;
+      document.getElementById("status").value = m.status;
+      document.getElementById("upgradeLevel").value = m.upgradeLevel;
+      document.getElementById("dateStamp").value = m.dateStamp;
+      document.getElementById("upgradeDate").value = m.upgradeDate;
+    });
+    modalTitle.textContent = "Edit Member";
+    memberModal.style.display = "flex";
+  }
+  if (e.target.classList.contains("delete-btn")) {
+    await deleteDoc(doc(db, "members", e.target.dataset.id));
+    log("Deleted member ID: " + e.target.dataset.id);
+    loadMembers();
+  }
+});
+
+// Commit ADD/EDIT
+memberForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const data = {
+    email: document.getElementById("email").value.trim(),
+    userId: document.getElementById("userId").value.trim(),
+    name: document.getElementById("name").value.trim(),
+    address: document.getElementById("address").value.trim(),
+    status: document.getElementById("status").value,
+    upgradeLevel: document.getElementById("upgradeLevel").value,
+    dateStamp: document.getElementById("dateStamp").value,
+    upgradeDate: document.getElementById("upgradeDate").value
+  };
+
+  // Validation: upgradeDate > dateStamp
+  if (new Date(data.upgradeDate) <= new Date(data.dateStamp)) {
+    alert("Upgrade date must be after creation date");
+    return;
+  }
+
+  if (editingId) {
+    await updateDoc(doc(db, "members", editingId), data);
+    log("Updated member: " + editingId);
+  } else {
+    await addDoc(collection(db, "members"), data);
+    log("Added member: " + data.email);
+  }
+  memberModal.style.display = "none";
+  loadMembers();
+});
+
+closeModal.addEventListener("click", () => {
+  memberModal.style.display = "none";
+});
+</script>
 </body>
 </html>
