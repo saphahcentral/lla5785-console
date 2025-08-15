@@ -1,129 +1,270 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>LLA5785 Console - Members</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    th { background-color: #eee; }
-    button { padding: 5px 10px; }
-    #console { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; margin-top: 20px; height: 180px; overflow-y: auto; border-radius: 4px; }
-    #authStatus { font-weight: bold; margin-top: 8px; }
-  </style>
-  <!-- Firebase App & Firestore & Auth (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LLA5785 Members Admin</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #eef6ff;
+    margin: 0;
+    padding: 10px;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    color: #003366;
+  }
+  .left-panel {
+    flex: 0 0 320px;
+    padding: 10px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .right-panel {
+    flex: 1;
+    margin-left: 10px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    overflow: auto;
+    padding: 10px;
+  }
+  h1 {
+    font-size: 1.3em;
+    text-align: center;
+    color: #004080;
+    margin-bottom: 10px;
+  }
+  button {
+    padding: 10px;
+    background-color: #0066cc;
+    color: white;
+    font-size: 1em;
+    font-weight: bold;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+  }
+  button:hover { background-color: #004d99; }
+  button.delete { background-color: #cc0000; }
+  button.delete:hover { background-color: #990000; }
+  label {
+    font-weight: bold;
+    margin-top: 5px;
+  }
+  input, select {
+    padding: 8px;
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 6px;
+    text-align: left;
+  }
+  th {
+    background: #cce0ff;
+  }
+</style>
 </head>
 <body>
-  <h1>LLA5785 Console - Members</h1>
-  <div id="authStatus">Checking authentication...</div>
 
+<div class="left-panel">
+  <h1>Members Console</h1>
+  <button id="addBtn">➕ Add Member</button>
+  <button id="editBtn">✏️ Edit Selected</button>
+  <button id="deleteBtn" class="delete">🗑 Delete Selected</button>
+
+  <form id="memberForm" style="display:none;">
+    <h2 id="formTitle">Add Member</h2>
+    <label>Email</label>
+    <input type="email" id="email" required />
+    <label>User ID</label>
+    <input type="text" id="userID" required />
+    <label>Name</label>
+    <input type="text" id="name" required />
+    <label>Address</label>
+    <input type="text" id="address" required />
+    <label>Status</label>
+    <select id="status" required>
+      <option value="APPROVED">APPROVED</option>
+      <option value="PENDING">PENDING</option>
+    </select>
+    <label>Upgrade Level</label>
+    <select id="upgradeLevel" required>
+      <option value="ADMIN">ADMIN</option>
+      <option value="UPGRADED">UPGRADED</option>
+      <option value="FREE">FREE</option>
+      <option value="VIP">VIP</option>
+    </select>
+    <label>Date Stamp</label>
+    <input type="date" id="dateStamp" />
+    <label>Upgrade Date</label>
+    <input type="date" id="upgradeDate" />
+    <button type="submit">✅ Commit</button>
+    <button type="button" id="cancelBtn">❌ Cancel</button>
+  </form>
+</div>
+
+<div class="right-panel">
   <table id="membersTable">
     <thead>
       <tr>
+        <th></th>
         <th>Email</th>
-        <th>Plan</th>
+        <th>User ID</th>
+        <th>Name</th>
+        <th>Address</th>
         <th>Status</th>
-        <th>Actions</th>
+        <th>Upgrade Level</th>
+        <th>Date Stamp</th>
+        <th>Upgrade Date</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
+</div>
 
-  <pre id="console">Console log:</pre>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-  <script>
-    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+const firebaseConfig = {
+  apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+  authDomain: "lla5785v3-0.firebaseapp.com",
+  projectId: "lla5785v3-0",
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
-      authDomain: "lla5785v3-0.firebaseapp.com",
-      projectId: "lla5785v3-0",
-      storageBucket: "lla5785v3-0.firebasestorage.app",
-      messagingSenderId: "730972554331",
-      appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
-    };
+const membersTable = document.querySelector("#membersTable tbody");
+const addBtn = document.getElementById("addBtn");
+const editBtn = document.getElementById("editBtn");
+const deleteBtn = document.getElementById("deleteBtn");
+const form = document.getElementById("memberForm");
+const cancelBtn = document.getElementById("cancelBtn");
+let editMode = false;
+let selectedDocId = null;
+let membersData = [];
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    const auth = firebase.auth();
+function renderTable(data) {
+  membersTable.innerHTML = "";
+  data.forEach((m, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input type="radio" name="selectMember" value="${index}"></td>
+      <td>${m.email}</td>
+      <td>${m.userID}</td>
+      <td>${m.name}</td>
+      <td>${m.address}</td>
+      <td>${m.status}</td>
+      <td>${m.upgradeLevel}</td>
+      <td>${m.dateStamp}</td>
+      <td>${m.upgradeDate}</td>
+    `;
+    membersTable.appendChild(row);
+  });
+}
 
-    const logEl = document.getElementById("console");
-    const authStatusEl = document.getElementById("authStatus");
-    function log(msg) {
-      const ts = new Date().toISOString();
-      logEl.textContent += `\n[${ts}] ${msg}`;
-      logEl.scrollTop = logEl.scrollHeight;
-      console.log(msg);
-    }
+async function loadMembers() {
+  membersData = [];
+  const snapshot = await getDocs(collection(db, "members"));
+  snapshot.forEach(docSnap => {
+    membersData.push({ id: docSnap.id, ...docSnap.data() });
+  });
+  renderTable(membersData);
+}
 
-    log(`Firebase projectId: ${firebase.app().options.projectId}`);
+function resetForm() {
+  form.reset();
+  form.style.display = "none";
+  editMode = false;
+  selectedDocId = null;
+}
 
-    async function loadMembers() {
-      const tbody = document.querySelector("#membersTable tbody");
-      tbody.innerHTML = "";
-      try {
-        const snapshot = await db.collection("members").get();
-        if (snapshot.empty) {
-          log("⚠️ No members found in collection.");
-          return;
-        }
-        log(`🔍 Found ${snapshot.size} member(s).`);
-        snapshot.forEach(doc => {
-          log(`Doc ID: ${doc.id}`);
-          const data = doc.data() || {};
-          const row = tbody.insertRow();
-          row.insertCell().textContent = data.email || "(no email)";
-          row.insertCell().textContent = data.plan || "-";
-          row.insertCell().textContent = data.status || "-";
+addBtn.addEventListener("click", () => {
+  form.style.display = "block";
+  document.getElementById("formTitle").textContent = "Add Member";
+  editMode = false;
+});
 
-          const actionsCell = row.insertCell();
-          const deleteBtn = document.createElement("button");
-          deleteBtn.textContent = "Delete";
-          deleteBtn.onclick = async () => {
-            if (!confirm(`Delete ${data.email || doc.id}?`)) return;
-            try {
-              await db.collection("members").doc(doc.id).delete();
-              log(`Deleted: ${data.email || doc.id}`);
-              await loadMembers();
-            } catch (err) {
-              log("Delete error: " + err.message);
-            }
-          };
-          actionsCell.appendChild(deleteBtn);
-        });
-        log("✅ Members loaded.");
-      } catch (e) {
-        log("❌ Error loading members: " + (e.message || e));
-        if (e.code === 'permission-denied') {
-          log("Permission denied — check Firestore rules and that you are signed in as admin.");
-        }
-      }
-    }
+editBtn.addEventListener("click", () => {
+  const selected = document.querySelector("input[name='selectMember']:checked");
+  if (!selected) return alert("Select a member to edit.");
+  const member = membersData[selected.value];
+  form.style.display = "block";
+  document.getElementById("formTitle").textContent = "Edit Member";
+  editMode = true;
+  selectedDocId = member.id;
+  document.getElementById("email").value = member.email;
+  document.getElementById("userID").value = member.userID;
+  document.getElementById("name").value = member.name;
+  document.getElementById("address").value = member.address;
+  document.getElementById("status").value = member.status;
+  document.getElementById("upgradeLevel").value = member.upgradeLevel;
+  document.getElementById("dateStamp").value = member.dateStamp || "";
+  document.getElementById("upgradeDate").value = member.upgradeDate || "";
+});
 
-    auth.onAuthStateChanged(async (user) => {
-      log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
-      if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
-        try {
-          await loadMembers();
-        } catch (e) {
-          log("loadMembers after auth error: " + e.message);
-        }
-      } else {
-        authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
-        log("Access denied: non-admin or not signed in.");
-      }
-    });
+deleteBtn.addEventListener("click", async () => {
+  const selected = document.querySelector("input[name='selectMember']:checked");
+  if (!selected) return alert("Select a member to delete.");
+  if (!confirm("Are you sure?")) return;
+  await deleteDoc(doc(db, "members", membersData[selected.value].id));
+  loadMembers();
+});
 
-    // window-level error logging
-    window.addEventListener('error', (ev) => {
-      log('Window error: ' + ev.message);
-    });
-  </script>
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("email").value.trim().toLowerCase();
+  const userID = document.getElementById("userID").value.trim();
+  const name = document.getElementById("name").value.trim();
+  const address = document.getElementById("address").value.trim();
+  const status = document.getElementById("status").value;
+  const upgradeLevel = document.getElementById("upgradeLevel").value;
+  let dateStamp = document.getElementById("dateStamp").value;
+  let upgradeDate = document.getElementById("upgradeDate").value;
+
+  // Validation
+  if (!email.endsWith("@gmail.com")) return alert("Email must be a Gmail address.");
+  if (!name || !address) return alert("Name and address are required.");
+  if (status !== "APPROVED" && status !== "PENDING") return alert("Invalid status.");
+  if (!["ADMIN","UPGRADED","FREE","VIP"].includes(upgradeLevel)) return alert("Invalid upgrade level.");
+  if (!dateStamp) dateStamp = new Date().toISOString().slice(0,10);
+  if (upgradeDate && upgradeDate <= dateStamp) return alert("Upgrade date must be after creation date.");
+
+  // Unique checks
+  const emailExists = membersData.some(m => m.email === email && (!editMode || m.id !== selectedDocId));
+  if (emailExists) return alert("Email already exists.");
+  const userIDExists = membersData.some(m => m.userID === userID && (!editMode || m.id !== selectedDocId));
+  if (userIDExists) return alert("User ID already exists.");
+
+  const newData = { email, userID, name, address, status, upgradeLevel, dateStamp, upgradeDate };
+
+  if (editMode) {
+    await setDoc(doc(db, "members", selectedDocId), newData);
+  } else {
+    await setDoc(doc(db, "members", userID), newData);
+  }
+  resetForm();
+  loadMembers();
+});
+
+cancelBtn.addEventListener("click", resetForm);
+
+// Initial load
+loadMembers();
+</script>
+
 </body>
 </html>
