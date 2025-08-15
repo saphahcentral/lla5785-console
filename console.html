@@ -10,19 +10,24 @@
       background: #eef6ff;
       margin: 0;
       padding: 20px;
-      text-align: center;
       color: #003366;
     }
+    .main-wrapper {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
     .console-container {
-      max-width: 600px;
-      margin: 0 auto;
+      flex: 1 1 300px;
       background: white;
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
       padding: 30px;
+      min-width: 280px;
     }
     h1 {
       color: #004080;
+      text-align: center;
     }
     .menu-button {
       display: block;
@@ -37,6 +42,7 @@
       width: 80%;
       max-width: 300px;
       transition: background-color 0.3s;
+      text-align: center;
     }
     .menu-button:hover {
       background-color: #004d99;
@@ -45,19 +51,36 @@
       margin-top: 30px;
       background-color: #cc0000;
     }
+    .output-console {
+      flex: 1 1 300px;
+      background: #111;
+      color: #0f0;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      font-family: monospace;
+      overflow-y: auto;
+      max-height: 500px;
+      min-width: 280px;
+    }
   </style>
 </head>
 <body>
-  <div class="console-container">
-    <h1>LLA5785 Admin Console</h1>
-    <p id="welcome">Checking authentication...</p>
+  <div class="main-wrapper">
+    <div class="console-container">
+      <h1>LLA5785 Admin Console</h1>
+      <p id="welcome">Checking authentication...</p>
 
-    <a href="ads.html" class="menu-button">📢 Review Ads Database</a>
-    <a href="members.html" class="menu-button">👥 Review Members Database</a>
-    <a href="backup.html" class="menu-button">💾 Backup Databases</a>
-    <a href="propagate.html" class="menu-button">🔄 Propagate from Google Sheets</a>
+      <a href="ads.html" class="menu-button">📢 Review Ads Database</a>
+      <a href="members.html" class="menu-button">👥 Review Members Database</a>
+      <a href="backup.html" class="menu-button">💾 Backup Databases</a>
 
-    <button id="sign-out" class="menu-button sign-out">🚪 Sign Out</button>
+      <button id="sign-out" class="menu-button sign-out">🚪 Sign Out</button>
+    </div>
+
+    <pre class="output-console" id="log">
+[Console output will appear here...]
+    </pre>
   </div>
 
   <!-- Firebase App and Auth -->
@@ -78,6 +101,7 @@
     onAuthStateChanged(auth, (user) => {
       if (user && user.email === allowedEmail) {
         document.getElementById("welcome").textContent = "Welcome, " + (user.displayName || user.email);
+        logMessage("✅ Authentication successful for " + user.email);
       } else {
         alert("Unauthorized access. Redirecting to login...");
         window.location.href = "index.html";
@@ -89,6 +113,12 @@
         window.location.href = "index.html";
       });
     });
+
+    function logMessage(msg) {
+      const logEl = document.getElementById("log");
+      logEl.textContent += "\n" + msg;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
   </script>
 </body>
 </html>
