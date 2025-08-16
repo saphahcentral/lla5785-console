@@ -5,26 +5,31 @@
   <title>LLA5785 Console - Ads</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; display: flex; }
-    .table-container { flex: 1; margin-right: 20px; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; display: flex; gap: 20px; }
+    .table-container { flex: 1; }
     h1 { margin: 0 0 10px; }
     #authStatus { font-weight: bold; margin-bottom: 10px; }
-    button { padding: 5px 10px; margin-right: 5px; cursor: pointer; }
+    button { padding: 6px 10px; margin-right: 6px; cursor: pointer; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; background: #fff; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background-color: #eee; }
     tr:hover { background-color: #f7f7f7; }
-    #console { width: 320px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: 90vh; overflow-y: auto; border-radius: 4px; }
+    #console { width: 340px; white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; height: 90vh; overflow-y: auto; border-radius: 4px; }
+
     /* Modal */
-    .modal { display: none; position: fixed; z-index: 1000; left:0; top:0; width:100%; height:100%; overflow:auto; background: rgba(0,0,0,0.5); }
-    .modal-content { background: #fff; margin: 50px auto; padding: 20px; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal { display: none; position: fixed; z-index: 1000; inset: 0; background: rgba(0,0,0,0.5); }
+    .modal-content {
+      background: #fff; margin: 50px auto; padding: 20px; border-radius: 8px;
+      width: 90%; max-width: 640px; max-height: 80vh; overflow-y: auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    }
+    .modal-header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
     .modal-content label { display: block; margin-bottom: 4px; font-weight: bold; }
     .modal-content input, .modal-content textarea, .modal-content select { width: 100%; padding: 6px; box-sizing: border-box; }
-    .modal-header { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
-    .modal-footer { grid-column: 1 / -1; text-align: right; margin-top: 10px; }
+    .modal-footer { grid-column: 1 / -1; text-align: right; margin-top: 6px; }
   </style>
 
-  <!-- Firebase (compat) same as members page -->
+  <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -33,7 +38,7 @@
   <div class="table-container">
     <h1>LLA5785 Console - Ads</h1>
     <div id="authStatus">Checking authentication...</div>
-    <button id="addAdBtn" style="display:none;">➕ Add Ad</button>
+    <button id="addAdBtn">➕ Add Ad</button>
 
     <table id="adsTable">
       <thead>
@@ -50,42 +55,42 @@
   <pre id="console">Console log:</pre>
 
   <!-- Modal -->
-  <div id="adModal" class="modal">
-    <div class="modal-content">
+  <div id="adModal" class="modal" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
-        <h2 id="modalTitle">Add/Edit Ad</h2>
-        <button id="closeModalBtn">X</button>
+        <h2 id="modalTitle">Add Ad</h2>
+        <button id="closeModalBtn" aria-label="Close">X</button>
       </div>
 
       <input type="hidden" id="docId" />
 
       <div>
-        <label>Member Email</label>
+        <label for="memberId">Member Email</label>
         <input type="email" id="memberId" placeholder="someone@example.com" />
       </div>
 
       <div>
-        <label>URL</label>
+        <label for="url">URL</label>
         <input type="url" id="url" placeholder="https://example.com/landing" />
       </div>
 
       <div>
-        <label>Banner Image URL</label>
+        <label for="banner">Banner Image URL</label>
         <input type="url" id="banner" placeholder="https://example.com/banner.jpg" />
       </div>
 
       <div>
-        <label>Banner Link</label>
+        <label for="bannerLink">Banner Link</label>
         <input type="url" id="bannerLink" placeholder="https://example.com/click-target" />
       </div>
 
       <div style="grid-column: 1 / -1;">
-        <label>Ad Description</label>
+        <label for="adDescription">Ad Description</label>
         <textarea id="adDescription" rows="3" placeholder="Short internal description..."></textarea>
       </div>
 
       <div>
-        <label>Active</label>
+        <label for="active">Active</label>
         <select id="active">
           <option value="true">true</option>
           <option value="false">false</option>
@@ -99,8 +104,8 @@
   </div>
 
   <script>
+    // ==== CONFIG ====
     const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
-
     const firebaseConfig = {
       apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
       authDomain: "lla5785v3-0.firebaseapp.com",
@@ -110,10 +115,12 @@
       appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e"
     };
 
+    // ==== INIT ====
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
 
+    // ==== ELEMS ====
     const logEl = document.getElementById("console");
     const authStatusEl = document.getElementById("authStatus");
     const addAdBtn = document.getElementById("addAdBtn");
@@ -122,8 +129,18 @@
     const commitBtn = document.getElementById("commitBtn");
     const modalTitle = document.getElementById("modalTitle");
 
+    const docIdEl = document.getElementById("docId");
+    const memberIdEl = document.getElementById("memberId");
+    const urlEl = document.getElementById("url");
+    const bannerEl = document.getElementById("banner");
+    const bannerLinkEl = document.getElementById("bannerLink");
+    const adDescriptionEl = document.getElementById("adDescription");
+    const activeEl = document.getElementById("active");
+
+    let isAdmin = false;
     let editingDocId = null;
 
+    // ==== UTIL ====
     function log(msg) {
       const ts = new Date().toISOString();
       logEl.textContent += `\n[${ts}] ${msg}`;
@@ -134,77 +151,52 @@
     function openModal(data = {}, docId = null) {
       editingDocId = docId;
       modalTitle.textContent = editingDocId ? "Edit Ad" : "Add Ad";
-      document.getElementById("docId").value = editingDocId || "";
-      document.getElementById("memberId").value     = data.memberId     || "";
-      document.getElementById("url").value          = data.url          || "";
-      document.getElementById("banner").value       = data.banner       || "";
-      document.getElementById("bannerLink").value   = data.bannerLink   || "";
-      document.getElementById("adDescription").value= data.adDescription|| "";
-      document.getElementById("active").value       = (data.active === false) ? "false" : "true";
+      docIdEl.value = editingDocId || "";
+      memberIdEl.value   = data.memberId   || "";
+      urlEl.value        = data.url        || "";
+      bannerEl.value     = data.banner     || "";
+      bannerLinkEl.value = data.bannerLink || "";
+      adDescriptionEl.value = data.adDescription || "";
+      activeEl.value     = (data.active === false) ? "false" : "true";
       modal.style.display = "block";
+      modal.setAttribute("aria-hidden", "false");
+      // focus first input for speed
+      setTimeout(() => memberIdEl.focus(), 0);
     }
 
-    function closeModal() { modal.style.display = "none"; }
+    function closeModal() {
+      modal.style.display = "none";
+      modal.setAttribute("aria-hidden", "true");
+    }
 
-    closeModalBtn.onclick = closeModal;
-    window.onclick = (e) => { if (e.target === modal) closeModal(); };
-    addAdBtn.onclick = () => openModal();
-
-    async function loadAds() {
-      const tbody = document.querySelector("#adsTable tbody");
-      tbody.innerHTML = "";
-      try {
-        const snapshot = await db.collection("ad_list").get();
-        if (snapshot.empty) { log("⚠️ No ads found."); return; }
-        log(`🔍 Found ${snapshot.size} ad(s).`);
-        snapshot.forEach(doc => {
-          const data = doc.data() || {};
-          const row = tbody.insertRow();
-          row.insertCell().textContent = data.memberId || "(no email)";
-          row.insertCell().textContent = data.url || "-";
-          const actionsCell = row.insertCell();
-
-          const editBtn = document.createElement("button");
-          editBtn.textContent = "Edit";
-          editBtn.onclick = () => openModal(data, doc.id);
-
-          const deleteBtn = document.createElement("button");
-          deleteBtn.textContent = "Delete";
-          deleteBtn.onclick = async () => {
-            if (!confirm(`Delete ad for ${data.memberId || "unknown"} (${data.url || doc.id})?`)) return;
-            try {
-              await db.collection("ad_list").doc(doc.id).delete();
-              log(`🗑️ Deleted ad for ${data.memberId || "unknown"} (${data.url || doc.id}).`);
-              loadAds();
-            } catch (err) {
-              log("❌ Delete error: " + err.message);
-            }
-          };
-
-          actionsCell.appendChild(editBtn);
-          actionsCell.appendChild(deleteBtn);
-        });
-        log("✅ Ads loaded.");
-      } catch (e) {
-        log("❌ Error loading ads: " + (e.message || e));
-        if (e.code === "permission-denied") {
-          log("Permission denied — check Firestore rules and admin sign-in.");
-        }
+    function requireAdminOrWarn() {
+      if (!isAdmin) {
+        alert("You must be authenticated as admin to save or delete ads.");
+        log("⚠️ Blocked write: user is not admin.");
+        return false;
       }
+      return true;
     }
 
-    commitBtn.onclick = async () => {
+    // ==== EVENTS (robust modal control) ====
+    addAdBtn.addEventListener("click", () => openModal());
+    closeModalBtn.addEventListener("click", closeModal);
+    window.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal.style.display === "block") closeModal(); });
+
+    commitBtn.addEventListener("click", async () => {
       try {
+        if (!requireAdminOrWarn()) return;
+
         const adData = {
-          memberId:      document.getElementById("memberId").value.trim(),
-          url:           document.getElementById("url").value.trim(),
-          banner:        document.getElementById("banner").value.trim(),
-          bannerLink:    document.getElementById("bannerLink").value.trim(),
-          adDescription: document.getElementById("adDescription").value.trim(),
-          active:        document.getElementById("active").value === "true"
+          memberId:      memberIdEl.value.trim(),
+          url:           urlEl.value.trim(),
+          banner:        bannerEl.value.trim(),
+          bannerLink:    bannerLinkEl.value.trim(),
+          adDescription: adDescriptionEl.value.trim(),
+          active:        activeEl.value === "true"
         };
 
-        // Minimal validation: email + url must exist; no cross-check with members.
         if (!adData.memberId || !adData.url) {
           alert("Member Email and URL are required.");
           return;
@@ -220,24 +212,68 @@
         closeModal();
         loadAds();
       } catch (e) {
-        log("❌ Commit error: " + e.message);
-      }
-    };
-
-    // Auth: admin only
-    auth.onAuthStateChanged(async (user) => {
-      log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
-      if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
-        addAdBtn.style.display = "inline-block";
-        loadAds();
-      } else {
-        authStatusEl.textContent = "Access denied";
-        log("Access denied: non-admin or not signed in.");
+        log("❌ Commit error: " + (e.message || e));
       }
     });
 
-    window.addEventListener("error", (ev) => log("Window error: " + ev.message));
+    // ==== TABLE ====
+    async function loadAds() {
+      const tbody = document.querySelector("#adsTable tbody");
+      tbody.innerHTML = "";
+      try {
+        const snapshot = await db.collection("ad_list").get();
+        log(`🔍 Found ${snapshot.size} ad(s).`);
+        snapshot.forEach(doc => {
+          const data = doc.data() || {};
+          const tr = tbody.insertRow();
+          tr.insertCell().textContent = data.memberId || "(no email)";
+          tr.insertCell().textContent = data.url || "-";
+
+          const actionsCell = tr.insertCell();
+
+          const editBtn = document.createElement("button");
+          editBtn.textContent = "Edit";
+          editBtn.onclick = () => openModal(data, doc.id);
+          actionsCell.appendChild(editBtn);
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.textContent = "Delete";
+          deleteBtn.onclick = async () => {
+            if (!requireAdminOrWarn()) return;
+            if (!confirm(`Delete ad for ${data.memberId || "unknown"} (${data.url || doc.id})?`)) return;
+            try {
+              await db.collection("ad_list").doc(doc.id).delete();
+              log(`🗑️ Deleted ad for ${data.memberId || "unknown"} (${data.url || doc.id}).`);
+              loadAds();
+            } catch (err) {
+              log("❌ Delete error: " + (err.message || err));
+            }
+          };
+          actionsCell.appendChild(deleteBtn);
+        });
+        log("✅ Ads loaded.");
+      } catch (e) {
+        log("❌ Error loading ads: " + (e.message || e));
+        if (e.code === "permission-denied") log("🔒 Permission denied — check Firestore rules and admin sign-in.");
+      }
+    }
+
+    // ==== AUTH ====
+    auth.onAuthStateChanged(async (user) => {
+      log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
+      isAdmin = !!(user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase());
+      if (isAdmin) {
+        authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+        loadAds();
+      } else if (user) {
+        authStatusEl.textContent = "Access denied (not admin).";
+      } else {
+        authStatusEl.textContent = "Not signed in.";
+      }
+    });
+
+    // Global error catch
+    window.addEventListener("error", (ev) => { log("Window error: " + ev.message); });
   </script>
 </body>
 </html>
