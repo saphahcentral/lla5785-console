@@ -14,9 +14,7 @@
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -24,13 +22,15 @@
 
 <div class="controls">
   <h1>LLA5785 Console</h1>
-  <div id="authStatus">Checking authentication...</div>
+  <div id="authStatus">Checking admin session...</div>
   <button id="startBtn" disabled>Start Backup</button>
 </div>
 
 <pre id="logConsole">Ready.</pre>
 
 <script>
+// --- Admin session (Option 1) ---
+const sessionAdminEmail = "bessingerbackup2024@gmail.com"; // trusted session
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
 // Google Drive & GIS
@@ -53,7 +53,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const auth = firebase.auth();
 
 const startBtn = document.getElementById('startBtn');
 const logConsole = document.getElementById('logConsole');
@@ -141,7 +140,7 @@ async function handleBackupClick(){
   try{
     const dateStr = new Date().toISOString().slice(0,10);
 
-    // List of collections to backup
+    // Collections to backup
     const collections = ['members','ad_list','resources'];
 
     for(const coll of collections){
@@ -161,20 +160,18 @@ async function handleBackupClick(){
   }
 }
 
-// Firebase Admin Auth
-auth.onAuthStateChanged((user)=>{
-  log("Auth state changed: "+(user ? (user.email||user.uid) : "signed out"));
-  if(user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase()){
-    authStatusEl.textContent=`Authenticated as admin: ${user.email}`;
-    initGIS();
-    startBtn.disabled = false;
-    startBtn.onclick = requestAccessToken;
-  } else {
-    authStatusEl.textContent="Access denied: You are not authenticated as admin.";
-    log("Access denied: non-admin or not signed in.");
-    startBtn.disabled = true;
-  }
-});
+// --- Admin session handling ---
+if(sessionAdminEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
+  authStatusEl.textContent = `Authenticated as admin: ${sessionAdminEmail}`;
+  log(`✅ Admin session recognized: ${sessionAdminEmail}`);
+  initGIS();
+  startBtn.disabled = false;
+  startBtn.onclick = requestAccessToken;
+} else {
+  authStatusEl.textContent = "Access denied: not authenticated as admin.";
+  log("❌ Access denied: invalid admin session.");
+  startBtn.disabled = true;
+}
 
 window.addEventListener('error', ev=>log('Window error: '+ev.message));
 </script>
