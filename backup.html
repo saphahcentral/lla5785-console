@@ -5,12 +5,12 @@
 <title>LLA5785 Console - Backup to Google Drive</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; display: flex; }
-  .controls { flex: 1; max-width: 400px; margin-right: 20px; }
-  button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px 0; width: 100%; }
-  button:disabled { background:#9fc3ea; cursor:not-allowed; }
-  pre { flex: 2; background: #222; color: #0f0; padding: 15px; height: 600px; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
-  #authStatus { font-weight: bold; margin-bottom: 12px; }
+body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; display: flex; }
+.controls { flex: 1; max-width: 400px; margin-right: 20px; }
+button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px 0; width: 100%; }
+button:disabled { background:#9fc3ea; cursor:not-allowed; }
+pre { flex: 2; background: #222; color: #0f0; padding: 15px; height: 600px; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
+#authStatus { font-weight: bold; margin-bottom: 12px; }
 </style>
 
 <script src="https://apis.google.com/js/api.js"></script>
@@ -19,26 +19,26 @@
 <body>
 
 <div class="controls">
-  <h1>LLA5785 Console</h1>
-  <div id="authStatus">Checking admin session...</div>
-  <button id="startBtn" disabled>Start Backup</button>
+<h1>LLA5785 Console</h1>
+<div id="authStatus">Admin session verified</div>
+<button id="startBtn">Start Backup</button>
 </div>
 
 <pre id="logConsole">Ready.</pre>
 
 <script>
-// --- Trusted Admin Session ---
-const sessionAdminEmail = "bessingerbackup2024@gmail.com";
+// ------------------------------
+// CONFIG
+// ------------------------------
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
+const sessionAdminEmail = "bessingerbackup2024@gmail.com"; // trusted
 
-// Google Drive & GIS
 const CLIENT_ID = '730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M';
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
 
-// Firestore REST config
 const FIREBASE_PROJECT_ID = "lla5785v3-0";
 const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
@@ -53,108 +53,113 @@ function log(text){
   console.log(text);
 }
 
-// --- GIS Token Client ---
+// ------------------------------
+// GIS TOKEN CLIENT
+// ------------------------------
 let tokenClient = null;
 function initGIS(){
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
-    callback: async (tokenResponse) => {
+    callback: async (tokenResponse)=>{
       if(tokenResponse.error){
-        log('❌ Error obtaining token: '+tokenResponse.error);
+        log('❌ Token error: '+tokenResponse.error);
         return;
       }
       log('✅ Access token obtained.');
       gapi.client.setToken(tokenResponse);
-      await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
+      await gapi.client.init({apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS});
       await handleBackupClick();
     }
   });
 }
 
-function requestAccessToken(){
-  if(tokenClient) tokenClient.requestAccessToken();
-}
-
-// --- Fetch Firestore collection via REST ---
-async function fetchCollectionData(collectionName){
-  log(`Fetching Firestore collection "${collectionName}" via REST API...`);
-  const url = `${FIRESTORE_BASE_URL}/${collectionName}?pageSize=1000`;
-  const res = await fetch(url);
+// ------------------------------
+// FETCH FIRESTORE via REST
+// ------------------------------
+async function fetchCollectionData(name){
+  log(`Fetching Firestore collection "${name}"...`);
+  const res = await fetch(`${FIRESTORE_BASE_URL}/${name}?pageSize=1000`);
   if(!res.ok) throw new Error(`Firestore fetch failed: ${res.statusText}`);
   const json = await res.json();
-  const items = (json.documents || []).map(doc=>{
+  const items = (json.documents||[]).map(doc=>{
     const data = {};
-    for(const [key,val] of Object.entries(doc.fields || {})){
-      data[key] = val.stringValue || val.integerValue || val.booleanValue || val.arrayValue || val.mapValue || null;
+    for(const [k,v] of Object.entries(doc.fields||{})){
+      data[k] = v.stringValue || v.integerValue || v.booleanValue || v.arrayValue || v.mapValue || null;
     }
     return {id: doc.name.split('/').pop(), ...data};
   });
-  log(`Fetched ${items.length} records from "${collectionName}".`);
+  log(`Fetched ${items.length} records from "${name}".`);
   return items;
 }
 
-// --- Convert collection to JS module ---
-function createJSModule(name, data){
-  return `// Auto-generated backup of "${name}"\nexport const ${name} = ${JSON.stringify(data,null,2)};\n`;
+// ------------------------------
+// CREATE JS MODULE
+// ------------------------------
+function createJSModule(name,data){
+  return `// Auto backup of "${name}"\nexport const ${name} = ${JSON.stringify(data,null,2)};\n`;
 }
 
-// --- Upload JS file to Drive ---
+// ------------------------------
+// UPLOAD TO DRIVE
+// ------------------------------
 async function uploadFileToDrive(filename, content){
-  const boundary = '-------314159265358979323846';
-  const delimiter = "\r\n--"+boundary+"\r\n";
-  const close_delim = "\r\n--"+boundary+"--";
+  const boundary='-------314159265358979323846';
+  const delimiter="\r\n--"+boundary+"\r\n";
+  const close_delim="\r\n--"+boundary+"--";
 
-  const metadata = { name: filename, parents:[DRIVE_FOLDER_ID], mimeType:'text/javascript' };
-  const multipartRequestBody =
-    delimiter+'Content-Type: application/json\r\n\r\n'+JSON.stringify(metadata)+
-    delimiter+'Content-Type: text/javascript\r\n\r\n'+content+
-    close_delim;
+  const metadata={name:filename, parents:[DRIVE_FOLDER_ID], mimeType:'text/javascript'};
+  const multipart=delimiter+'Content-Type: application/json\r\n\r\n'+JSON.stringify(metadata)+
+                  delimiter+'Content-Type: text/javascript\r\n\r\n'+content+
+                  close_delim;
 
   return gapi.client.request({
     path:'/upload/drive/v3/files',
     method:'POST',
     params:{uploadType:'multipart'},
     headers:{'Content-Type':'multipart/related; boundary="'+boundary+'"'},
-    body: multipartRequestBody
+    body: multipart
   });
 }
 
-// --- Backup ---
+// ------------------------------
+// BACKUP HANDLER
+// ------------------------------
 async function handleBackupClick(){
-  startBtn.disabled = true;
+  startBtn.disabled=true;
   log('Starting backup process...');
   try{
     const dateStr = new Date().toISOString().slice(0,10);
-    const collections = ['members','ad_list','resources'];
+    const collections=['members','ad_list','resources'];
 
     for(const coll of collections){
-      const data = await fetchCollectionData(coll);
-      const jsContent = createJSModule(coll, data);
-      const filename = `LLA5785V3-0_Backup_${coll}_${dateStr}.js`;
-      await uploadFileToDrive(filename, jsContent);
-      log(`✅ ${coll} backup uploaded as JS module.`);
+      const data=await fetchCollectionData(coll);
+      const js=createJSModule(coll,data);
+      const filename=`LLA5785V3-0_Backup_${coll}_${dateStr}.js`;
+      await uploadFileToDrive(filename,js);
+      log(`✅ ${coll} backup uploaded.`);
     }
 
-    log('🎉 All backups completed successfully!');
-  } catch(e){
+    log('🎉 Backup completed successfully!');
+  }catch(e){
     log('❌ Backup error: '+(e.message||JSON.stringify(e)));
-  } finally {
-    startBtn.disabled = false;
+  }finally{
+    startBtn.disabled=false;
   }
 }
 
-// --- Admin Session Handling ---
-if(sessionAdminEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
-  authStatusEl.textContent = `Authenticated as admin: ${sessionAdminEmail}`;
+// ------------------------------
+// ADMIN SESSION
+// ------------------------------
+if(sessionAdminEmail.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
+  authStatusEl.textContent=`Authenticated as admin: ${sessionAdminEmail}`;
   log(`✅ Admin session recognized: ${sessionAdminEmail}`);
+  startBtn.disabled=false;
   initGIS();
-  startBtn.disabled = false;
-  startBtn.onclick = requestAccessToken;
-} else {
-  authStatusEl.textContent = "Access denied: not authenticated as admin.";
-  log("❌ Access denied: invalid admin session.");
-  startBtn.disabled = true;
+  startBtn.onclick=()=>tokenClient.requestAccessToken();
+}else{
+  authStatusEl.textContent="Access denied: not admin";
+  startBtn.disabled=true;
 }
 
 window.addEventListener('error', ev=>log('Window error: '+ev.message));
