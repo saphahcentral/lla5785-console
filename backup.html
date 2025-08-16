@@ -1,167 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>LLA5785 Console - Backup to Google Drive</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
-    h1 { color: #333; }
-    #log { 
-      white-space: pre-wrap; 
-      background: #fff; 
-      padding: 10px; 
-      border: 1px solid #ccc; 
-      height: 300px; 
-      overflow-y: auto; 
-      font-family: monospace; 
-    }
-    button { 
-      margin: 10px 0; 
-      padding: 10px 20px; 
-      font-size: 16px; 
-    }
-    #auth-status { font-weight: bold; margin-top: 10px; }
-  </style>
+<meta charset="UTF-8">
+<title>LLA5785 Backup Console</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; display: flex; flex-direction: column; align-items: center; }
+  h1 { margin-bottom: 20px; }
+  button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin-bottom: 20px; }
+  button:disabled { background: #9fc3ea; cursor: not-allowed; }
+  pre { background: #222; color: #0f0; padding: 15px; height: 500px; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; width: 100%; max-width: 800px; }
+</style>
 </head>
 <body>
-  <h1>📦 Backup Firestore Collections to Google Drive</h1>
 
-  <button id="startBtn" disabled>Start Backup</button>
-  <div id="auth-status">⏳ Checking admin session...</div>
-  <h3>Logs:</h3>
-  <div id="log"></div>
+<h1>LLA5785 Backup Console</h1>
+<button id="startBtn">Start Backup</button>
+<pre id="logConsole">Ready.</pre>
 
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <!-- Google API Client -->
-  <script src="https://apis.google.com/js/api.js" async defer></script>
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+const startBtn = document.getElementById('startBtn');
+const logConsole = document.getElementById('logConsole');
 
-  <script>
-    // === CONFIG ===
-    const CLIENT_ID = "730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com";
-    const API_KEY = ""; // not required if only Drive upload via token
-    const SCOPES = "https://www.googleapis.com/auth/drive.file";
-    const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+// Replace this URL with your deployed Cloud Function URL
+const BACKUP_FUNCTION_URL = "https://us-central1-lla5785v3-0.cloudfunctions.net/runBackup";
 
-    const firebaseConfig = {
-      apiKey: "YOUR_FIREBASE_KEY",
-      authDomain: "YOUR_FIREBASE_APP.firebaseapp.com",
-      projectId: "YOUR_FIREBASE_APP",
-    };
+function log(text){
+  const ts = new Date().toISOString();
+  logConsole.textContent += `\n[${ts}] ${text}`;
+  logConsole.scrollTop = logConsole.scrollHeight;
+  console.log(text);
+}
 
-    const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
-    const sessionAdminEmail = "bessingerbackup2024@gmail.com"; // injected via session in real setup
+async function runBackup(){
+  startBtn.disabled = true;
+  log("Starting backup...");
 
-    // === GLOBALS ===
-    let tokenClient;
-    let db;
+  try {
+    const response = await fetch(BACKUP_FUNCTION_URL, { method: 'POST' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    log("✅ Backup completed successfully.");
+    log(JSON.stringify(data, null, 2));
+  } catch(err){
+    log("❌ Backup failed: " + err.message);
+  } finally {
+    startBtn.disabled = false;
+  }
+}
 
-    const logEl = document.getElementById('log');
-    const startBtn = document.getElementById('startBtn');
-    const authStatusEl = document.getElementById('auth-status');
+startBtn.addEventListener('click', runBackup);
 
-    function log(msg) {
-      const timestamp = new Date().toISOString();
-      logEl.textContent += `[${timestamp}] ${msg}\n`;
-      logEl.scrollTop = logEl.scrollHeight;
-      console.log(msg);
-    }
+// Optional: auto-run backup immediately on page load
+// window.addEventListener('load', runBackup);
 
-    // === WAIT FOR GOOGLE LOADED ===
-    function waitForGoogle(callback){
-      const interval = setInterval(()=>{
-        if(window.google && google.accounts && google.accounts.oauth2){
-          clearInterval(interval);
-          callback();
-        }
-      }, 50);
-    }
+</script>
 
-    // === INIT APP ===
-    window.addEventListener('DOMContentLoaded', () => {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.firestore();
-
-      if (sessionAdminEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-        authStatusEl.textContent = `✅ Admin session recognized: ${sessionAdminEmail}`;
-        log(`✅ Admin session recognized: ${sessionAdminEmail}`);
-        startBtn.disabled = false;
-      } else {
-        authStatusEl.textContent = `❌ Access denied for ${sessionAdminEmail}`;
-        log(`❌ Unauthorized: ${sessionAdminEmail}`);
-        return;
-      }
-
-      // Prepare GIS after scripts are ready
-      waitForGoogle(initGIS);
-    });
-
-    // === INIT GOOGLE IDENTITY SERVICES ===
-    function initGIS() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error) {
-            log('❌ Token error: ' + tokenResponse.error);
-            return;
-          }
-          log('✅ Access token obtained.');
-          gapi.client.setToken(tokenResponse);
-
-          await gapi.client.init({ discoveryDocs: DISCOVERY_DOCS });
-          await handleBackupClick(); // start backup immediately after authorization
-        }
-      });
-
-      startBtn.onclick = () => {
-        log("▶️ Starting authorization flow...");
-        tokenClient.requestAccessToken();
-      };
-    }
-
-    // === BACKUP LOGIC ===
-    async function handleBackupClick() {
-      try {
-        log("📂 Fetching Firestore collections...");
-
-        const collections = ["ads", "members", "resources"]; // extend as needed
-        for (const collName of collections) {
-          const snapshot = await db.collection(collName).get();
-          let data = {};
-          snapshot.forEach(doc => { data[doc.id] = doc.data(); });
-
-          const fileContent = "export const " + collName + " = " + JSON.stringify(data, null, 2) + ";";
-          const file = new Blob([fileContent], { type: "application/javascript" });
-          const metadata = {
-            name: `${collName}.js`,
-            mimeType: "application/javascript"
-          };
-
-          const accessToken = gapi.client.getToken().access_token;
-          const form = new FormData();
-          form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
-          form.append("file", file);
-
-          const uploadRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
-            method: "POST",
-            headers: new Headers({ "Authorization": "Bearer " + accessToken }),
-            body: form,
-          });
-
-          if (!uploadRes.ok) throw new Error(`Upload failed for ${collName}`);
-          log(`✅ Uploaded ${collName}.js`);
-        }
-
-        log("🎉 Backup complete!");
-      } catch (err) {
-        log("❌ Backup error: " + err.message);
-      }
-    }
-  </script>
 </body>
 </html>
