@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>LLA5785 Console - Backup to Google Drive</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; display: flex; }
   .controls { flex: 1; max-width: 400px; margin-right: 20px; }
@@ -13,19 +13,20 @@
   #authStatus { font-weight: bold; margin-bottom: 12px; }
 </style>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- Google API -->
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-
 </head>
 <body>
 
 <div class="controls">
   <h1>LLA5785 Console</h1>
   <div id="authStatus">Checking authentication...</div>
-  <button id="authorizeBtn" disabled>Authorize Google Drive</button>
   <button id="startBtn" disabled>Start Backup</button>
 </div>
 
@@ -34,7 +35,7 @@
 <script>
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
-// Updated Google Drive OAuth keys
+// Google Drive & GIS
 const CLIENT_ID = '730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com';
 const API_KEY = 'AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M';
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
@@ -55,7 +56,6 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const authorizeBtn = document.getElementById('authorizeBtn');
 const startBtn = document.getElementById('startBtn');
 const logConsole = document.getElementById('logConsole');
 const authStatusEl = document.getElementById('authStatus');
@@ -67,38 +67,38 @@ function log(text){
   console.log(text);
 }
 
-// --- Google API Client ---
-function handleClientLoad(){ gapi.load('client:auth2', initClient); }
-
-function initClient(){
-  gapi.client.init({
-    apiKey: API_KEY,
-    clientId: CLIENT_ID,
-    discoveryDocs: DISCOVERY_DOCS,
-    scope: SCOPES
-  }).then(()=>{
-    gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
-    updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
-    authorizeBtn.onclick = handleAuthClick;
-    startBtn.onclick = handleBackupClick;
-  }).catch(err=>log('Error loading Google API client: '+JSON.stringify(err)));
+// --- GIS Token Client ---
+let tokenClient = null;
+function initGIS(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (tokenResponse) => {
+      log('✅ Access token obtained.');
+      gapi.client.setToken(tokenResponse);
+      await initGapiClient();
+      startBtn.disabled = false;
+      handleBackupClick();
+    }
+  });
 }
 
-function updateSigninStatus(isSignedIn){
-  if(isSignedIn){
-    authorizeBtn.style.display = 'none';
-    startBtn.disabled = false;
-    log('✅ Google Drive Authorization ready.');
-  } else {
-    authorizeBtn.style.display = 'inline-block';
-    startBtn.disabled = true;
-    log('⚠️ Please authorize access to Google Drive.');
-  }
+function requestAccessToken(){
+  if(tokenClient) tokenClient.requestAccessToken();
 }
 
-function handleAuthClick(){ gapi.auth2.getAuthInstance().signIn(); }
+// --- gapi.client init ---
+async function initGapiClient(){
+  await gapi.load('client', async () => {
+    await gapi.client.init({
+      apiKey: API_KEY,
+      discoveryDocs: DISCOVERY_DOCS
+    });
+    log('✅ Google Drive client initialized.');
+  });
+}
 
-// --- Firestore Fetch ---
+// --- Fetch Firestore ---
 async function fetchCollectionData(collectionName){
   log(`Fetching Firestore collection "${collectionName}"...`);
   const snapshot = await db.collection(collectionName).get();
@@ -108,13 +108,13 @@ async function fetchCollectionData(collectionName){
   return items;
 }
 
-// --- Upload to Drive ---
+// --- Upload JSON to Drive ---
 async function uploadFileToDrive(name, content){
   const boundary = '-------314159265358979323846';
   const delimiter = "\r\n--"+boundary+"\r\n";
   const close_delim = "\r\n--"+boundary+"--";
 
-  const metadata = { name:name, parents:[DRIVE_FOLDER_ID], mimeType:'application/json' };
+  const metadata = { name, parents:[DRIVE_FOLDER_ID], mimeType:'application/json' };
   const multipartRequestBody =
     delimiter+'Content-Type: application/json\r\n\r\n'+JSON.stringify(metadata)+
     delimiter+'Content-Type: application/json\r\n\r\n'+content+
@@ -129,43 +129,43 @@ async function uploadFileToDrive(name, content){
   });
 }
 
-// --- Main Backup ---
+// --- Backup ---
 async function handleBackupClick(){
+  startBtn.disabled = true;
   log('Starting backup process...');
   try{
     const dateStr = new Date().toISOString().slice(0,10);
     const membersData = await fetchCollectionData('members');
     await uploadFileToDrive(`LLA5785V3-0_Backup_members_${dateStr}.json`, JSON.stringify(membersData,null,2));
-    log(`✅ Uploaded members backup as LLA5785V3-0_Backup_members_${dateStr}.json`);
+    log(`✅ Members backup uploaded.`);
 
     const adsData = await fetchCollectionData('ad_list');
     await uploadFileToDrive(`LLA5785V3-0_Backup_ad_list_${dateStr}.json`, JSON.stringify(adsData,null,2));
-    log(`✅ Uploaded ad_list backup as LLA5785V3-0_Backup_ad_list_${dateStr}.json`);
+    log(`✅ ad_list backup uploaded.`);
 
     log('🎉 Backup completed successfully!');
   } catch(e){
     log('❌ Backup error: '+(e.message||JSON.stringify(e)));
     if(e.result && e.result.error) log('Drive API error: '+JSON.stringify(e.result.error));
-  }
+  } finally { startBtn.disabled = false; }
 }
 
-// --- Firebase Auth Check ---
+// --- Firebase Admin Auth ---
 auth.onAuthStateChanged((user)=>{
   log("Auth state changed: "+(user ? (user.email||user.uid) : "signed out"));
   if(user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase()){
     authStatusEl.textContent=`Authenticated as admin: ${user.email}`;
-    authorizeBtn.disabled=false;
-    handleClientLoad();
+    initGIS();
+    startBtn.disabled = false; // Enable after GIS ready
+    startBtn.onclick = requestAccessToken;
   } else {
     authStatusEl.textContent="Access denied: You are not authenticated as admin.";
     log("Access denied: non-admin or not signed in.");
-    authorizeBtn.disabled=true;
-    startBtn.disabled=true;
+    startBtn.disabled = true;
   }
 });
 
 window.addEventListener('error', ev=>log('Window error: '+ev.message));
-
 </script>
 
 </body>
