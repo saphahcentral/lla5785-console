@@ -14,19 +14,22 @@ pre { flex: 2; background: #222; color: #0f0; padding: 15px; height: 600px; over
 </style>
 
 <script src="https://apis.google.com/js/api.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
 </head>
 <body>
 
 <div class="controls">
 <h1>LLA5785 Console</h1>
 <div id="authStatus">Admin session verified</div>
-<button id="startBtn">Start Backup</button>
+<button id="startBtn" disabled>Start Backup</button>
 </div>
 
 <pre id="logConsole">Ready.</pre>
 
 <script>
+// ------------------------------
+// CONFIG
+// ------------------------------
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 const sessionAdminEmail = "bessingerbackup2024@gmail.com"; // trusted
 
@@ -50,9 +53,9 @@ function log(text){
   console.log(text);
 }
 
-// ------------------
-// GIS Token
-// ------------------
+// ------------------------------
+// GIS TOKEN CLIENT
+// ------------------------------
 let tokenClient = null;
 function initGIS(){
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -71,9 +74,23 @@ function initGIS(){
   });
 }
 
-// ------------------
+// Called when google client script has loaded
+function gisLoaded(){
+  if(sessionAdminEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
+    authStatusEl.textContent = `Authenticated as admin: ${sessionAdminEmail}`;
+    log(`✅ Admin session recognized: ${sessionAdminEmail}`);
+    startBtn.disabled = false;
+    initGIS(); // safe now, google is defined
+    startBtn.onclick = () => tokenClient.requestAccessToken();
+  } else {
+    authStatusEl.textContent = "Access denied: not admin";
+    startBtn.disabled = true;
+  }
+}
+
+// ------------------------------
 // Firestore REST fetch
-// ------------------
+// ------------------------------
 async function fetchCollectionData(name){
   log(`Fetching Firestore collection "${name}"...`);
   const res = await fetch(`${FIRESTORE_BASE_URL}/${name}?pageSize=1000`);
@@ -90,16 +107,16 @@ async function fetchCollectionData(name){
   return items;
 }
 
-// ------------------
+// ------------------------------
 // JS module conversion
-// ------------------
+// ------------------------------
 function createJSModule(name,data){
   return `// Auto backup of "${name}"\nexport const ${name} = ${JSON.stringify(data,null,2)};\n`;
 }
 
-// ------------------
+// ------------------------------
 // Upload to Drive
-// ------------------
+// ------------------------------
 async function uploadFileToDrive(filename, content){
   const boundary='-------314159265358979323846';
   const delimiter="\r\n--"+boundary+"\r\n";
@@ -119,9 +136,9 @@ async function uploadFileToDrive(filename, content){
   });
 }
 
-// ------------------
+// ------------------------------
 // Backup Handler
-// ------------------
+// ------------------------------
 async function handleBackupClick(){
   startBtn.disabled=true;
   log('Starting backup...');
@@ -143,20 +160,6 @@ async function handleBackupClick(){
   }finally{
     startBtn.disabled=false;
   }
-}
-
-// ------------------
-// Admin Session
-// ------------------
-if(sessionAdminEmail.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
-  authStatusEl.textContent=`Authenticated as admin: ${sessionAdminEmail}`;
-  log(`✅ Admin session recognized: ${sessionAdminEmail}`);
-  startBtn.disabled=false;
-  initGIS();
-  startBtn.onclick=()=>tokenClient.requestAccessToken();
-}else{
-  authStatusEl.textContent="Access denied: not admin";
-  startBtn.disabled=true;
 }
 
 window.addEventListener('error', ev=>log('Window error: '+ev.message));
