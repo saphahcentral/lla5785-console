@@ -3,27 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <title>Ads Console</title>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; display: flex; }
-    #adsContainer { flex: 2; padding: 20px; }
-    #console { flex: 1; padding: 20px; background: #111; color: #0f0; overflow-y: auto; height: 90vh; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    body { font-family: Arial, sans-serif; display: flex; margin: 0; padding: 0; height: 100vh; }
+    #table-container { flex: 2; padding: 20px; overflow-y: auto; }
+    #console { flex: 1; background: #111; color: #0f0; padding: 10px; overflow-y: auto; height: 100vh; white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background: #f4f4f4; }
     button { margin: 2px; padding: 5px 10px; }
-    .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); }
+    #addBtn { margin-bottom: 10px; }
+    .modal { display: none; position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); }
     .modal-content { background: #fff; margin: 10% auto; padding: 20px; width: 400px; border-radius: 8px; position: relative; }
-    .close { position: absolute; top:10px; right:15px; font-size: 20px; cursor: pointer; }
+    .close { position: absolute; top: 10px; right: 15px; font-size: 18px; cursor: pointer; }
+    label { display: block; margin-top: 10px; }
+    input, textarea, select { width: 100%; padding: 6px; margin-top: 4px; }
   </style>
 </head>
 <body>
-  <div id="adsContainer">
+  <div id="table-container">
     <h2>Ads Console</h2>
-    <div id="authStatus"></div>
-    <button id="addAdBtn">Add Ad</button>
+    <div id="authStatus">Checking authentication...</div>
+    <button id="addBtn" style="display:none;">Add Ad</button>
     <table id="adsTable">
       <thead>
         <tr>
@@ -44,39 +47,54 @@
       <span class="close">&times;</span>
       <h3 id="modalTitle">Add Ad</h3>
       <form id="adForm">
-        <label>Active: <input type="checkbox" id="active"></label><br><br>
-        <label>Description:<br><textarea id="adDescription"></textarea></label><br><br>
-        <label>Banner URL:<br><input type="text" id="banner"></label><br><br>
-        <label>Banner Link:<br><input type="text" id="bannerLink"></label></label><br><br>
-        <label>URL:<br><input type="text" id="url"></label><br><br>
-        <label>Member Email:<br><input type="text" id="memberId"></label><br><br>
+        <input type="hidden" id="docId">
+        <label>Member Email
+          <input type="email" id="memberId" required>
+        </label>
+        <label>URL
+          <input type="url" id="url" required>
+        </label>
+        <label>Banner Image URL
+          <input type="url" id="banner">
+        </label>
+        <label>Banner Link
+          <input type="url" id="bannerLink">
+        </label>
+        <label>Ad Description
+          <textarea id="adDescription"></textarea>
+        </label>
+        <label>Active
+          <select id="active">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </label>
         <button type="submit">Save</button>
       </form>
     </div>
   </div>
 
   <script>
-    // Firebase config
+    // === FIREBASE CONFIG ===
     const firebaseConfig = {
       apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID"
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
     };
     firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
-    const ADMIN_EMAIL = "admin@example.com"; // replace with your admin email
-
+    const ADMIN_EMAIL = "admin@example.com"; // change to your admin email
     const adsTableBody = document.querySelector("#adsTable tbody");
     const consoleEl = document.getElementById("console");
+    const addBtn = document.getElementById("addBtn");
     const modal = document.getElementById("adModal");
-    const modalTitle = document.getElementById("modalTitle");
     const closeModal = document.querySelector(".close");
     const adForm = document.getElementById("adForm");
-    const addAdBtn = document.getElementById("addAdBtn");
+    const modalTitle = document.getElementById("modalTitle");
 
-    let currentAdId = null;
+    let currentUserEmail = null;
 
     function log(msg) {
       const time = new Date().toLocaleTimeString();
@@ -84,22 +102,54 @@
       consoleEl.scrollTop = consoleEl.scrollHeight;
     }
 
-    // Auth check
-    auth.onAuthStateChanged(user => {
-      if (user && user.email === ADMIN_EMAIL) {
-        document.getElementById("authStatus").textContent = "Logged in as admin: " + user.email;
-        loadAds();
-      } else if (user) {
-        document.getElementById("authStatus").textContent = "Access denied: " + user.email;
-        log("Access denied for " + user.email);
-      } else {
-        document.getElementById("authStatus").textContent = "Not logged in.";
-      }
-    });
+    function openModal(edit=false, data={}, id="") {
+      modal.style.display = "block";
+      modalTitle.textContent = edit ? "Edit Ad" : "Add Ad";
+      document.getElementById("docId").value = id || "";
+      document.getElementById("memberId").value = data.memberId || "";
+      document.getElementById("url").value = data.url || "";
+      document.getElementById("banner").value = data.banner || "";
+      document.getElementById("bannerLink").value = data.bannerLink || "";
+      document.getElementById("adDescription").value = data.adDescription || "";
+      document.getElementById("active").value = (data.active === false) ? "false" : "true";
+    }
 
-    function loadAds() {
-      db.collection("ad_list").onSnapshot(snapshot => {
-        adsTableBody.innerHTML = "";
+    function closeModalFn() { modal.style.display = "none"; }
+
+    closeModal.onclick = closeModalFn;
+    window.onclick = e => { if (e.target == modal) closeModalFn(); }
+
+    addBtn.onclick = () => openModal(false);
+
+    adForm.onsubmit = async e => {
+      e.preventDefault();
+      const id = document.getElementById("docId").value;
+      const adData = {
+        memberId: document.getElementById("memberId").value,
+        url: document.getElementById("url").value,
+        banner: document.getElementById("banner").value,
+        bannerLink: document.getElementById("bannerLink").value,
+        adDescription: document.getElementById("adDescription").value,
+        active: document.getElementById("active").value === "true"
+      };
+      try {
+        if (id) {
+          await db.collection("ad_list").doc(id).update(adData);
+          log(`Updated ad for ${adData.memberId} (${adData.url})`);
+        } else {
+          await db.collection("ad_list").add(adData);
+          log(`Added new ad for ${adData.memberId} (${adData.url})`);
+        }
+        closeModalFn();
+      } catch (err) {
+        log("Error saving ad: " + err);
+      }
+    };
+
+    async function loadAds() {
+      adsTableBody.innerHTML = "";
+      try {
+        const snapshot = await db.collection("ad_list").get();
         snapshot.forEach(doc => {
           const data = doc.data();
           const row = document.createElement("tr");
@@ -108,71 +158,49 @@
             <td>${data.url || ""}</td>
             <td>
               <button onclick="editAd('${doc.id}')">Edit</button>
-              <button onclick="deleteAd('${doc.id}')">Delete</button>
-            </td>
-          `;
+              <button onclick="deleteAd('${doc.id}', '${data.memberId}', '${data.url}')">Delete</button>
+            </td>`;
           adsTableBody.appendChild(row);
         });
-        log("Ads loaded/updated.");
-      });
-    }
-
-    window.editAd = function(id) {
-      currentAdId = id;
-      db.collection("ad_list").doc(id).get().then(doc => {
-        const data = doc.data();
-        document.getElementById("active").checked = data.active || false;
-        document.getElementById("adDescription").value = data.adDescription || "";
-        document.getElementById("banner").value = data.banner || "";
-        document.getElementById("bannerLink").value = data.bannerLink || "";
-        document.getElementById("url").value = data.url || "";
-        document.getElementById("memberId").value = data.memberId || "";
-        modalTitle.textContent = "Edit Ad";
-        modal.style.display = "block";
-      });
-    }
-
-    window.deleteAd = function(id) {
-      if (confirm("Delete this ad?")) {
-        db.collection("ad_list").doc(id).delete().then(() => {
-          log("Ad deleted: " + id);
-        });
+        log("Ads loaded.");
+      } catch (err) {
+        log("Error loading ads: " + err);
       }
     }
 
-    addAdBtn.onclick = () => {
-      currentAdId = null;
-      adForm.reset();
-      modalTitle.textContent = "Add Ad";
-      modal.style.display = "block";
-    }
+    window.editAd = async id => {
+      const doc = await db.collection("ad_list").doc(id).get();
+      if (doc.exists) openModal(true, doc.data(), id);
+    };
 
-    closeModal.onclick = () => modal.style.display = "none";
-    window.onclick = e => { if (e.target == modal) modal.style.display = "none"; }
+    window.deleteAd = async (id, memberId, url) => {
+      if (!confirm("Delete this ad?")) return;
+      try {
+        await db.collection("ad_list").doc(id).delete();
+        log(`Deleted ad for ${memberId} (${url})`);
+        loadAds();
+      } catch (err) {
+        log("Error deleting ad: " + err);
+      }
+    };
 
-    adForm.onsubmit = e => {
-      e.preventDefault();
-      const adData = {
-        active: document.getElementById("active").checked,
-        adDescription: document.getElementById("adDescription").value.trim(),
-        banner: document.getElementById("banner").value.trim(),
-        bannerLink: document.getElementById("bannerLink").value.trim(),
-        url: document.getElementById("url").value.trim(),
-        memberId: document.getElementById("memberId").value.trim()
-      };
-
-      if (currentAdId) {
-        db.collection("ad_list").doc(currentAdId).update(adData).then(() => {
-          log("Ad updated: " + currentAdId);
-          modal.style.display = "none";
-        });
+    // === AUTH CHECK ===
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        currentUserEmail = user.email;
+        if (currentUserEmail === ADMIN_EMAIL) {
+          document.getElementById("authStatus").textContent = "Authenticated as Admin.";
+          addBtn.style.display = "inline-block";
+          loadAds();
+        } else {
+          document.getElementById("authStatus").textContent = "Access Denied.";
+          log("Access denied for " + currentUserEmail);
+        }
       } else {
-        db.collection("ad_list").add(adData).then(docRef => {
-          log("Ad added: " + docRef.id);
-          modal.style.display = "none";
-        });
+        document.getElementById("authStatus").textContent = "Not signed in.";
+        log("No user signed in.");
       }
-    }
+    });
   </script>
 </body>
 </html>
