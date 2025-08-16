@@ -5,14 +5,15 @@
   <title>LLA5785 Console - Backup to Google Drive</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
-    button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px 0; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; display: flex; }
+    .controls { flex: 1; max-width: 400px; margin-right: 20px; }
+    button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px 0; width: 100%; }
     button:disabled { background:#9fc3ea; cursor:not-allowed; }
-    pre { background: #222; color: #0f0; padding: 15px; height: 320px; overflow-y: auto; white-space: pre-wrap; margin-top: 20px; border-radius: 4px; }
+    pre { flex: 2; background: #222; color: #0f0; padding: 15px; height: 600px; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; }
     #authStatus { font-weight: bold; margin-bottom: 12px; }
   </style>
 
-  <!-- Firebase (compat) and Google API client -->
+  <!-- Firebase and Google API client -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -21,11 +22,12 @@
 </head>
 <body>
 
-<h1>LLA5785 Console - Backup Firestore to Google Drive</h1>
-<div id="authStatus">Checking authentication...</div>
-
-<button id="authorizeBtn" disabled>Authorize Google Drive</button>
-<button id="backupBtn" disabled>Backup Members & Ads to Drive</button>
+<div class="controls">
+  <h1>LLA5785 Console</h1>
+  <div id="authStatus">Checking authentication...</div>
+  <button id="authorizeBtn" disabled>Authorize Google Drive</button>
+  <button id="backupBtn" disabled>Backup Members & Ads to Drive</button>
+</div>
 
 <pre id="logConsole">Ready.</pre>
 
@@ -34,7 +36,7 @@
 
   // Updated Google Drive OAuth keys
   const CLIENT_ID = '730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com'; // NEW GIS Client ID
-  const API_KEY = 'AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M'; // existing API key
+  const API_KEY = 'AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M';
   const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
   const SCOPES = 'https://www.googleapis.com/auth/drive.file';
   const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
@@ -68,11 +70,7 @@
   log(`Firebase projectId: ${firebase.app().options.projectId}`);
 
   function handleClientLoad() {
-    try {
-      gapi.load('client:auth2', initClient);
-    } catch (e) {
-      log("gapi.load error: " + e.message);
-    }
+    gapi.load('client:auth2', initClient);
   }
 
   function initClient() {
@@ -121,11 +119,7 @@
     const delimiter = "\r\n--" + boundary + "\r\n";
     const close_delim = "\r\n--" + boundary + "--";
 
-    const metadata = {
-      name: name,
-      parents: [DRIVE_FOLDER_ID],
-      mimeType: 'application/json'
-    };
+    const metadata = { name: name, parents: [DRIVE_FOLDER_ID], mimeType: 'application/json' };
 
     const multipartRequestBody =
       delimiter +
@@ -169,7 +163,7 @@
     if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
       authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
       authorizeBtn.disabled = false;
-      try { handleClientLoad(); } catch (err) { log('gapi init exception: ' + err.message); }
+      handleClientLoad();
     } else {
       authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
       log("Access denied: non-admin or not signed in.");
@@ -178,10 +172,7 @@
     }
   });
 
-  window.addEventListener('error', (ev) => {
-    log('Window error: ' + ev.message);
-  });
-
+  window.addEventListener('error', (ev) => log('Window error: ' + ev.message));
 </script>
 
 </body>
