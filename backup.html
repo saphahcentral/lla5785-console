@@ -13,12 +13,10 @@
   #authStatus { font-weight: bold; margin-bottom: 12px; }
 </style>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<!-- Google API -->
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -77,17 +75,17 @@ function initGIS(){
       log('✅ Access token obtained.');
       gapi.client.setToken(tokenResponse);
       await initGapiClient();
-      startBtn.disabled = false;
       handleBackupClick();
     }
   });
 }
 
+// Request token & start backup
 function requestAccessToken(){
   if(tokenClient) tokenClient.requestAccessToken();
 }
 
-// --- gapi.client init ---
+// --- Initialize gapi.client ---
 async function initGapiClient(){
   await gapi.load('client', async () => {
     await gapi.client.init({
@@ -156,7 +154,7 @@ auth.onAuthStateChanged((user)=>{
   if(user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase()){
     authStatusEl.textContent=`Authenticated as admin: ${user.email}`;
     initGIS();
-    startBtn.disabled = false; // Enable after GIS ready
+    startBtn.disabled = false;
     startBtn.onclick = requestAccessToken;
   } else {
     authStatusEl.textContent="Access denied: You are not authenticated as admin.";
