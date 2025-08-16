@@ -13,8 +13,6 @@
   #authStatus { font-weight: bold; margin-bottom: 12px; }
 </style>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -29,8 +27,8 @@
 <pre id="logConsole">Ready.</pre>
 
 <script>
-// --- Admin session (trusted) ---
-const sessionAdminEmail = "bessingerbackup2024@gmail.com"; // trusted session
+// --- Trusted Admin Session ---
+const sessionAdminEmail = "bessingerbackup2024@gmail.com";
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
 // Google Drive & GIS
@@ -40,19 +38,9 @@ const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/r
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
 
-// Firebase config
-const firebaseConfig = {
-  apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
-  authDomain: "lla5785v3-0.firebaseapp.com",
-  projectId: "lla5785v3-0",
-  storageBucket: "lla5785v3-0.firebasestorage.app",
-  messagingSenderId: "730972554331",
-  appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
-  measurementId: "G-WZNQ24S4DM"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// Firestore REST config
+const FIREBASE_PROJECT_ID = "lla5785v3-0";
+const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
 const startBtn = document.getElementById('startBtn');
 const logConsole = document.getElementById('logConsole');
@@ -78,41 +66,40 @@ function initGIS(){
       }
       log('✅ Access token obtained.');
       gapi.client.setToken(tokenResponse);
-      await initGapiClient();
+      await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
       await handleBackupClick();
     }
   });
 }
 
-// Request token
 function requestAccessToken(){
   if(tokenClient) tokenClient.requestAccessToken();
 }
 
-// Initialize gapi.client
-async function initGapiClient(){
-  await gapi.load('client', async () => {
-    await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
-    log('✅ Google Drive client initialized.');
-  });
-}
-
-// Fetch Firestore collection
+// --- Fetch Firestore collection via REST ---
 async function fetchCollectionData(collectionName){
-  log(`Fetching Firestore collection "${collectionName}"...`);
-  const snapshot = await db.collection(collectionName).get();
-  const items = [];
-  snapshot.forEach(doc => items.push({id: doc.id, ...doc.data()}));
+  log(`Fetching Firestore collection "${collectionName}" via REST API...`);
+  const url = `${FIRESTORE_BASE_URL}/${collectionName}?pageSize=1000`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`Firestore fetch failed: ${res.statusText}`);
+  const json = await res.json();
+  const items = (json.documents || []).map(doc=>{
+    const data = {};
+    for(const [key,val] of Object.entries(doc.fields || {})){
+      data[key] = val.stringValue || val.integerValue || val.booleanValue || val.arrayValue || val.mapValue || null;
+    }
+    return {id: doc.name.split('/').pop(), ...data};
+  });
   log(`Fetched ${items.length} records from "${collectionName}".`);
   return items;
 }
 
-// Convert collection to JS module
+// --- Convert collection to JS module ---
 function createJSModule(name, data){
   return `// Auto-generated backup of "${name}"\nexport const ${name} = ${JSON.stringify(data,null,2)};\n`;
 }
 
-// Upload JS file to Drive
+// --- Upload JS file to Drive ---
 async function uploadFileToDrive(filename, content){
   const boundary = '-------314159265358979323846';
   const delimiter = "\r\n--"+boundary+"\r\n";
@@ -133,14 +120,12 @@ async function uploadFileToDrive(filename, content){
   });
 }
 
-// Backup function
+// --- Backup ---
 async function handleBackupClick(){
   startBtn.disabled = true;
   log('Starting backup process...');
   try{
     const dateStr = new Date().toISOString().slice(0,10);
-
-    // Collections to backup
     const collections = ['members','ad_list','resources'];
 
     for(const coll of collections){
@@ -154,13 +139,12 @@ async function handleBackupClick(){
     log('🎉 All backups completed successfully!');
   } catch(e){
     log('❌ Backup error: '+(e.message||JSON.stringify(e)));
-    if(e.result && e.result.error) log('Drive API error: '+JSON.stringify(e.result.error));
   } finally {
     startBtn.disabled = false;
   }
 }
 
-// --- Admin session handling ---
+// --- Admin Session Handling ---
 if(sessionAdminEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
   authStatusEl.textContent = `Authenticated as admin: ${sessionAdminEmail}`;
   log(`✅ Admin session recognized: ${sessionAdminEmail}`);
