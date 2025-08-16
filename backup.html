@@ -14,7 +14,7 @@ pre { flex: 2; background: #222; color: #0f0; padding: 15px; height: 600px; over
 </style>
 
 <script src="https://apis.google.com/js/api.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -74,18 +74,16 @@ function initGIS(){
   });
 }
 
-// Called when google client script has loaded
-function gisLoaded(){
-  if(sessionAdminEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()){
-    authStatusEl.textContent = `Authenticated as admin: ${sessionAdminEmail}`;
-    log(`✅ Admin session recognized: ${sessionAdminEmail}`);
-    startBtn.disabled = false;
-    initGIS(); // safe now, google is defined
-    startBtn.onclick = () => tokenClient.requestAccessToken();
-  } else {
-    authStatusEl.textContent = "Access denied: not admin";
-    startBtn.disabled = true;
-  }
+// ------------------------------
+// Wait for Google GSI to be loaded
+// ------------------------------
+function waitForGoogle(callback){
+  const interval = setInterval(()=>{
+    if(window.google && google.accounts && google.accounts.oauth2){
+      clearInterval(interval);
+      callback();
+    }
+  }, 50);
 }
 
 // ------------------------------
@@ -128,42 +126,4 @@ async function uploadFileToDrive(filename, content){
                   close_delim;
 
   return gapi.client.request({
-    path:'/upload/drive/v3/files',
-    method:'POST',
-    params:{uploadType:'multipart'},
-    headers:{'Content-Type':'multipart/related; boundary="'+boundary+'"'},
-    body: multipart
-  });
-}
-
-// ------------------------------
-// Backup Handler
-// ------------------------------
-async function handleBackupClick(){
-  startBtn.disabled=true;
-  log('Starting backup...');
-  try{
-    const dateStr = new Date().toISOString().slice(0,10);
-    const collections=['members','ad_list','resources'];
-
-    for(const coll of collections){
-      const data=await fetchCollectionData(coll);
-      const js=createJSModule(coll,data);
-      const filename=`LLA5785V3-0_Backup_${coll}_${dateStr}.js`;
-      await uploadFileToDrive(filename,js);
-      log(`✅ ${coll} backup uploaded.`);
-    }
-
-    log('🎉 Backup completed successfully!');
-  }catch(e){
-    log('❌ Backup error: '+(e.message||JSON.stringify(e)));
-  }finally{
-    startBtn.disabled=false;
-  }
-}
-
-window.addEventListener('error', ev=>log('Window error: '+ev.message));
-</script>
-
-</body>
-</html>
+    p
