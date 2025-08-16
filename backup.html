@@ -27,9 +27,6 @@ pre { flex: 2; background: #222; color: #0f0; padding: 15px; height: 600px; over
 <pre id="logConsole">Ready.</pre>
 
 <script>
-// ------------------------------
-// CONFIG
-// ------------------------------
 const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 const sessionAdminEmail = "bessingerbackup2024@gmail.com"; // trusted
 
@@ -53,9 +50,9 @@ function log(text){
   console.log(text);
 }
 
-// ------------------------------
-// GIS TOKEN CLIENT
-// ------------------------------
+// ------------------
+// GIS Token
+// ------------------
 let tokenClient = null;
 function initGIS(){
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -74,9 +71,9 @@ function initGIS(){
   });
 }
 
-// ------------------------------
-// FETCH FIRESTORE via REST
-// ------------------------------
+// ------------------
+// Firestore REST fetch
+// ------------------
 async function fetchCollectionData(name){
   log(`Fetching Firestore collection "${name}"...`);
   const res = await fetch(`${FIRESTORE_BASE_URL}/${name}?pageSize=1000`);
@@ -93,16 +90,16 @@ async function fetchCollectionData(name){
   return items;
 }
 
-// ------------------------------
-// CREATE JS MODULE
-// ------------------------------
+// ------------------
+// JS module conversion
+// ------------------
 function createJSModule(name,data){
   return `// Auto backup of "${name}"\nexport const ${name} = ${JSON.stringify(data,null,2)};\n`;
 }
 
-// ------------------------------
-// UPLOAD TO DRIVE
-// ------------------------------
+// ------------------
+// Upload to Drive
+// ------------------
 async function uploadFileToDrive(filename, content){
   const boundary='-------314159265358979323846';
   const delimiter="\r\n--"+boundary+"\r\n";
@@ -122,12 +119,12 @@ async function uploadFileToDrive(filename, content){
   });
 }
 
-// ------------------------------
-// BACKUP HANDLER
-// ------------------------------
+// ------------------
+// Backup Handler
+// ------------------
 async function handleBackupClick(){
   startBtn.disabled=true;
-  log('Starting backup process...');
+  log('Starting backup...');
   try{
     const dateStr = new Date().toISOString().slice(0,10);
     const collections=['members','ad_list','resources'];
@@ -148,9 +145,9 @@ async function handleBackupClick(){
   }
 }
 
-// ------------------------------
-// ADMIN SESSION
-// ------------------------------
+// ------------------
+// Admin Session
+// ------------------
 if(sessionAdminEmail.toLowerCase()===ADMIN_EMAIL.toLowerCase()){
   authStatusEl.textContent=`Authenticated as admin: ${sessionAdminEmail}`;
   log(`✅ Admin session recognized: ${sessionAdminEmail}`);
