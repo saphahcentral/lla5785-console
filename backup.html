@@ -1,107 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>LLA5785 Console - Backup to Google Drive</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; color: #333; }
-    h1 { color: #2a6ebb; }
-    #gsiButton { margin: 20px 0; }
-    textarea { width: 100%; height: 200px; margin-top: 10px; font-family: monospace; font-size: 14px; }
-    button { padding: 10px 20px; margin-top: 10px; background: #2a6ebb; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px; }
-    button:hover { background: #1b4f91; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
+    button { padding: 10px 16px; font-size: 16px; background-color: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px 0; }
+    button:disabled { background:#9fc3ea; cursor:not-allowed; }
+    pre { background: #222; color: #0f0; padding: 15px; height: 320px; overflow-y: auto; white-space: pre-wrap; margin-top: 20px; border-radius: 4px; }
+    #authStatus { font-weight: bold; margin-bottom: 12px; }
   </style>
+
+  <!-- Firebase (compat) and Google API client -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js"></script>
 </head>
 <body>
 
-  <!-- Top Banner -->
-  <div style="background-color: yellow; color: red; font-size: xx-large; font-weight: bold; margin-top: 10px; padding: 10px; text-align: center;">
-      ❗ <b>*** NEW BLOG / EMAIL SERVICE COMING SHORTLY! WATCH THIS SPACE! ***</b>
-  </div>
-  <br />
+<h1>LLA5785 Console - Backup Firestore to Google Drive</h1>
+<div id="authStatus">Checking authentication...</div>
 
-  <h1>LLA5785 Console - Backup to Google Drive</h1>
-  <p>Use this console to back up your data securely to Google Drive. Please log in below to proceed.</p>
+<button id="authorizeBtn" disabled>Authorize Google Drive</button>
+<button id="backupBtn" disabled>Backup Members & Ads to Drive</button>
 
-  <!-- Google Sign-In Button -->
-  <div id="gsiButton"></div>
+<pre id="logConsole">Ready.</pre>
 
-  <textarea id="backupData" placeholder="Paste or type your backup data here..."></textarea>
-  <br/>
-  <button id="backupBtn" disabled>Backup Now to Google Drive</button>
+<script>
+  const ADMIN_EMAIL = "bessingerbackup2024@gmail.com";
 
-  <!-- Bottom Banner -->
-  <div style="background-color: yellow; color: red; font-size: xx-large; font-weight: bold; margin-top: 10px; padding: 10px; text-align: center;">
-      ❗ <b>*** THIS LIST IS NOW CLOSED. CHECK BACK FOR THE NEW SERVICE'S DETAILS... ***</b>
-  </div>
-  <br />
+  // Updated Google Drive OAuth keys
+  const CLIENT_ID = '730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com'; // NEW GIS Client ID
+  const API_KEY = 'AIzaSyDu3OcghkHbtOH6DnCkoGZyD4qTHUdlA5M'; // existing API key
+  const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+  const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+  const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
 
-  <script>
-    let token = null;
-    const CLIENT_ID = "730972554331-dq3noaodo7ej74gc3huofdrgbsdispap.apps.googleusercontent.com";
-    const FOLDER_ID = "1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB";
+  const firebaseConfig = {
+    apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
+    authDomain: "lla5785v3-0.firebaseapp.com",
+    projectId: "lla5785v3-0",
+    storageBucket: "lla5785v3-0.firebasestorage.app",
+    messagingSenderId: "730972554331",
+    appId: "1:730972554331:web:d97a5fbacebd6aa6e32b7e",
+    measurementId: "G-WZNQ24S4DM"
+  };
 
-    function handleCredentialResponse(response) {
-      token = response.credential;
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const authorizeBtn = document.getElementById('authorizeBtn');
+  const backupBtn = document.getElementById('backupBtn');
+  const logConsole = document.getElementById('logConsole');
+  const authStatusEl = document.getElementById('authStatus');
+
+  function log(text) {
+    const ts = new Date().toISOString();
+    logConsole.textContent += `\n[${ts}] ${text}`;
+    logConsole.scrollTop = logConsole.scrollHeight;
+    console.log(text);
+  }
+
+  log(`Firebase projectId: ${firebase.app().options.projectId}`);
+
+  function handleClientLoad() {
+    try {
       gapi.load('client:auth2', initClient);
+    } catch (e) {
+      log("gapi.load error: " + e.message);
     }
+  }
 
-    google.accounts.id.initialize({
-      client_id: CLIENT_ID,
-      callback: handleCredentialResponse
+  function initClient() {
+    gapi.client.init({
+      apiKey: API_KEY,
+      clientId: CLIENT_ID,
+      discoveryDocs: DISCOVERY_DOCS,
+      scope: SCOPES
+    }).then(() => {
+      gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+      updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+      authorizeBtn.onclick = handleAuthClick;
+      backupBtn.onclick = handleBackupClick;
+    }).catch(err => {
+      log('Error loading Google API client: ' + JSON.stringify(err, null, 2));
     });
+  }
 
-    google.accounts.id.renderButton(
-      document.getElementById("gsiButton"),
-      { theme: "outline", size: "large" }
-    );
-
-    function initClient() {
-      gapi.client.init({
-        apiKey: '', // optional if only OAuth token is used
-        clientId: CLIENT_ID,
-        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-        scope: "https://www.googleapis.com/auth/drive.file"
-      }).then(() => {
-        document.getElementById('backupBtn').disabled = false;
-      });
+  function updateSigninStatus(isSignedIn) {
+    if (isSignedIn) {
+      authorizeBtn.style.display = 'none';
+      backupBtn.disabled = false;
+      log('✅ Google Drive Authorization ready.');
+    } else {
+      authorizeBtn.style.display = 'inline-block';
+      backupBtn.disabled = true;
+      log('⚠️ Please authorize access to Google Drive.');
     }
+  }
 
-    document.getElementById('backupBtn').addEventListener('click', async () => {
-      const data = document.getElementById('backupData').value;
-      if (!data) return alert('Please enter some backup data first!');
+  function handleAuthClick() {
+    gapi.auth2.getAuthInstance().signIn();
+  }
 
-      const fileContent = new Blob([data], { type: 'text/plain' });
-      const metadata = {
-        name: 'backup_' + new Date().toISOString() + '.txt',
-        parents: [FOLDER_ID]
-      };
+  async function fetchCollectionData(collectionName) {
+    log(`Fetching Firestore collection "${collectionName}"...`);
+    const snapshot = await db.collection(collectionName).get();
+    const items = [];
+    snapshot.forEach(doc => items.push({ id: doc.id, ...doc.data() }));
+    log(`Fetched ${items.length} records from "${collectionName}".`);
+    return items;
+  }
 
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', fileContent);
+  async function uploadFileToDrive(name, content) {
+    const boundary = '-------314159265358979323846';
+    const delimiter = "\r\n--" + boundary + "\r\n";
+    const close_delim = "\r\n--" + boundary + "--";
 
-      try {
-        const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + gapi.auth.getToken().access_token },
-          body: form
-        });
-        if (res.ok) {
-          alert('Backup successful!');
-        } else {
-          const err = await res.json();
-          console.error(err);
-          alert('Backup failed. Check console for details.');
-        }
-      } catch (e) {
-        console.error(e);
-        alert('Backup failed due to an error.');
-      }
+    const metadata = {
+      name: name,
+      parents: [DRIVE_FOLDER_ID],
+      mimeType: 'application/json'
+    };
+
+    const multipartRequestBody =
+      delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      content +
+      close_delim;
+
+    return gapi.client.request({
+      path: '/upload/drive/v3/files',
+      method: 'POST',
+      params: { uploadType: 'multipart' },
+      headers: { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+      body: multipartRequestBody
     });
-  </script>
+  }
+
+  async function handleBackupClick() {
+    log('Starting backup process...');
+    try {
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const membersData = await fetchCollectionData('members');
+      await uploadFileToDrive(`LLA5785V3-0_Backup_members_${dateStr}.json`, JSON.stringify(membersData, null, 2));
+      log(`✅ Uploaded members backup as LLA5785V3-0_Backup_members_${dateStr}.json`);
+
+      const adsData = await fetchCollectionData('ad_list');
+      await uploadFileToDrive(`LLA5785V3-0_Backup_ad_list_${dateStr}.json`, JSON.stringify(adsData, null, 2));
+      log(`✅ Uploaded ad_list backup as LLA5785V3-0_Backup_ad_list_${dateStr}.json`);
+
+      log('🎉 Backup completed successfully!');
+    } catch (e) {
+      log('❌ Backup error: ' + (e.message || JSON.stringify(e)));
+      if (e.result && e.result.error) log('Drive API error: ' + JSON.stringify(e.result.error));
+    }
+  }
+
+  auth.onAuthStateChanged((user) => {
+    log("Auth state changed: " + (user ? (user.email || user.uid) : "signed out"));
+    if (user && (user.email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      authStatusEl.textContent = `Authenticated as admin: ${user.email}`;
+      authorizeBtn.disabled = false;
+      try { handleClientLoad(); } catch (err) { log('gapi init exception: ' + err.message); }
+    } else {
+      authStatusEl.textContent = "Access denied: You are not authenticated as admin.";
+      log("Access denied: non-admin or not signed in.");
+      authorizeBtn.disabled = true;
+      backupBtn.disabled = true;
+    }
+  });
+
+  window.addEventListener('error', (ev) => {
+    log('Window error: ' + ev.message);
+  });
+
+</script>
+
 </body>
 </html>
