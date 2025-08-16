@@ -40,6 +40,7 @@ const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/r
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER_ID = '1MzeTocaOF6074jEYDTwehsDNQZ-p2UpB';
 
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyBBn8RmuXVvkbbBB0IquYr9S6hXhIgrQCQ",
   authDomain: "lla5785v3-0.firebaseapp.com",
@@ -72,31 +73,32 @@ function initGIS(){
     client_id: CLIENT_ID,
     scope: SCOPES,
     callback: async (tokenResponse) => {
+      if(tokenResponse.error){
+        log('❌ Error obtaining token: '+tokenResponse.error);
+        return;
+      }
       log('✅ Access token obtained.');
       gapi.client.setToken(tokenResponse);
       await initGapiClient();
-      handleBackupClick();
+      await handleBackupClick();
     }
   });
 }
 
-// Request token & start backup
+// Request token
 function requestAccessToken(){
   if(tokenClient) tokenClient.requestAccessToken();
 }
 
-// --- Initialize gapi.client ---
+// Initialize gapi.client
 async function initGapiClient(){
   await gapi.load('client', async () => {
-    await gapi.client.init({
-      apiKey: API_KEY,
-      discoveryDocs: DISCOVERY_DOCS
-    });
+    await gapi.client.init({ apiKey: API_KEY, discoveryDocs: DISCOVERY_DOCS });
     log('✅ Google Drive client initialized.');
   });
 }
 
-// --- Fetch Firestore ---
+// Fetch Firestore collection
 async function fetchCollectionData(collectionName){
   log(`Fetching Firestore collection "${collectionName}"...`);
   const snapshot = await db.collection(collectionName).get();
@@ -106,16 +108,21 @@ async function fetchCollectionData(collectionName){
   return items;
 }
 
-// --- Upload JSON to Drive ---
-async function uploadFileToDrive(name, content){
+// Convert collection to JS module
+function createJSModule(name, data){
+  return `// Auto-generated backup of "${name}"\nexport const ${name} = ${JSON.stringify(data,null,2)};\n`;
+}
+
+// Upload JS file to Drive
+async function uploadFileToDrive(filename, content){
   const boundary = '-------314159265358979323846';
   const delimiter = "\r\n--"+boundary+"\r\n";
   const close_delim = "\r\n--"+boundary+"--";
 
-  const metadata = { name, parents:[DRIVE_FOLDER_ID], mimeType:'application/json' };
+  const metadata = { name: filename, parents:[DRIVE_FOLDER_ID], mimeType:'text/javascript' };
   const multipartRequestBody =
     delimiter+'Content-Type: application/json\r\n\r\n'+JSON.stringify(metadata)+
-    delimiter+'Content-Type: application/json\r\n\r\n'+content+
+    delimiter+'Content-Type: text/javascript\r\n\r\n'+content+
     close_delim;
 
   return gapi.client.request({
@@ -127,28 +134,34 @@ async function uploadFileToDrive(name, content){
   });
 }
 
-// --- Backup ---
+// Backup function
 async function handleBackupClick(){
   startBtn.disabled = true;
   log('Starting backup process...');
   try{
     const dateStr = new Date().toISOString().slice(0,10);
-    const membersData = await fetchCollectionData('members');
-    await uploadFileToDrive(`LLA5785V3-0_Backup_members_${dateStr}.json`, JSON.stringify(membersData,null,2));
-    log(`✅ Members backup uploaded.`);
 
-    const adsData = await fetchCollectionData('ad_list');
-    await uploadFileToDrive(`LLA5785V3-0_Backup_ad_list_${dateStr}.json`, JSON.stringify(adsData,null,2));
-    log(`✅ ad_list backup uploaded.`);
+    // List of collections to backup
+    const collections = ['members','ad_list','resources'];
 
-    log('🎉 Backup completed successfully!');
+    for(const coll of collections){
+      const data = await fetchCollectionData(coll);
+      const jsContent = createJSModule(coll, data);
+      const filename = `LLA5785V3-0_Backup_${coll}_${dateStr}.js`;
+      await uploadFileToDrive(filename, jsContent);
+      log(`✅ ${coll} backup uploaded as JS module.`);
+    }
+
+    log('🎉 All backups completed successfully!');
   } catch(e){
     log('❌ Backup error: '+(e.message||JSON.stringify(e)));
     if(e.result && e.result.error) log('Drive API error: '+JSON.stringify(e.result.error));
-  } finally { startBtn.disabled = false; }
+  } finally {
+    startBtn.disabled = false;
+  }
 }
 
-// --- Firebase Admin Auth ---
+// Firebase Admin Auth
 auth.onAuthStateChanged((user)=>{
   log("Auth state changed: "+(user ? (user.email||user.uid) : "signed out"));
   if(user && (user.email||"").toLowerCase()===ADMIN_EMAIL.toLowerCase()){
